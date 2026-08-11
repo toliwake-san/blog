@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>つながり — つきなみ文庫</title>
+<meta name="description" content="記事と本の参照関係">
+<meta property="og:title" content="つながり — つきなみ文庫">
+<meta property="og:description" content="記事と本の参照関係">
+<meta property="og:type" content="article">
+<link rel="alternate" type="application/rss+xml" title="つきなみ文庫" href="feed.xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="site-title" href="index.html">つきなみ文庫</a>
+  <nav class="site-nav">
+    <a href="index.html">記事</a>
+    <a href="books.html">本</a>
+    <a href="about.html">について</a>
+    <a href="feed.xml">RSS</a>
+    <a class="icon-link" href="network.html" aria-label="つながり">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3">
+        <circle cx="6" cy="17" r="2.4"/><circle cx="18" cy="17" r="2.4"/><circle cx="12" cy="6" r="2.4"/>
+        <path d="M7.6 15.2 10.6 8M13.5 8l3 7M8.4 17h7.2"/>
+      </svg>
+    </a>
+  </nav>
+</header>
+<main>
+<div class="graph-wrap"><canvas id="graph"></canvas></div>
+</main>
+<footer class="site-footer">
+  <p>© 2026 asage — つきなみ文庫</p>
+</footer><script>
+var DATA = {"nodes": [{"id": "はじめに", "t": "post", "u": "posts/hajimeni.html", "w": 1}], "edges": []};
+(function () {
+  var cv = document.getElementById('graph'), ctx = cv.getContext('2d');
+  var N = DATA.nodes.map(function (n, i) {
+    return { d: n, x: Math.cos(i) * 120 + Math.random() * 40, y: Math.sin(i * 1.7) * 120 + Math.random() * 40, vx: 0, vy: 0 };
+  });
+  var E = DATA.edges;
+  var W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2), hover = null;
+  function size() {
+    W = cv.parentNode.clientWidth; H = Math.max(380, Math.min(560, W * 0.72));
+    cv.width = W * DPR; cv.height = H * DPR; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  function step() {
+    for (var i = 0; i < N.length; i++) {
+      for (var j = i + 1; j < N.length; j++) {
+        var dx = N[j].x - N[i].x, dy = N[j].y - N[i].y, d2 = dx * dx + dy * dy + 0.01;
+        var f = 900 / d2, d = Math.sqrt(d2);
+        N[i].vx -= f * dx / d; N[i].vy -= f * dy / d;
+        N[j].vx += f * dx / d; N[j].vy += f * dy / d;
+      }
+    }
+    E.forEach(function (e) {
+      var a = N[e[0]], b = N[e[1]], dx = b.x - a.x, dy = b.y - a.y;
+      var d = Math.sqrt(dx * dx + dy * dy) + 0.01, f = (d - 80) * 0.008;
+      a.vx += f * dx / d; a.vy += f * dy / d; b.vx -= f * dx / d; b.vy -= f * dy / d;
+    });
+    N.forEach(function (n) {
+      n.vx -= n.x * 0.004; n.vy -= n.y * 0.004;
+      n.vx *= 0.86; n.vy *= 0.86; n.x += n.vx; n.y += n.vy;
+    });
+  }
+  function radius(n) { return 4 + Math.min(9, n.d.w * 1.6); }
+  function draw() {
+    var css = getComputedStyle(document.documentElement);
+    var rule = css.getPropertyValue('--rule').trim() || '#e8e6e2';
+    var ink = css.getPropertyValue('--ink').trim() || '#1a1a1a';
+    var soft = css.getPropertyValue('--ink-faint').trim() || '#a8a8a8';
+    ctx.clearRect(0, 0, W, H);
+    ctx.save(); ctx.translate(W / 2, H / 2);
+    ctx.strokeStyle = rule; ctx.lineWidth = 1;
+    E.forEach(function (e) {
+      ctx.beginPath(); ctx.moveTo(N[e[0]].x, N[e[0]].y); ctx.lineTo(N[e[1]].x, N[e[1]].y); ctx.stroke();
+    });
+    N.forEach(function (n) {
+      ctx.beginPath(); ctx.arc(n.x, n.y, radius(n), 0, 6.284);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = soft; ctx.lineWidth = 1; ctx.stroke();
+    });
+    ctx.font = '11px -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = soft;
+    N.forEach(function (n) { if (n.d.w > 1 || n === hover) ctx.fillText(n.d.id, n.x, n.y - radius(n) - 5); });
+    if (hover) {
+      ctx.fillStyle = ink; ctx.font = '12px -apple-system, sans-serif';
+      ctx.fillText(hover.d.id, hover.x, hover.y - radius(hover) - 5);
+    }
+    ctx.restore();
+  }
+  function pick(ev) {
+    var r = cv.getBoundingClientRect(), mx = ev.clientX - r.left - W / 2, my = ev.clientY - r.top - H / 2;
+    var best = null;
+    N.forEach(function (n) {
+      var d = Math.hypot(n.x - mx, n.y - my);
+      if (d < radius(n) + 7 && (!best || d < Math.hypot(best.x - mx, best.y - my))) best = n;
+    });
+    return best;
+  }
+  cv.addEventListener('mousemove', function (e) { hover = pick(e); cv.style.cursor = hover ? 'pointer' : 'default'; });
+  cv.addEventListener('click', function (e) { var n = pick(e); if (n) location.href = n.d.u; });
+  window.addEventListener('resize', size);
+  size();
+  var t = 0;
+  (function loop() { if (t++ < 400) step(); draw(); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>

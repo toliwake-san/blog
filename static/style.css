@@ -1,0 +1,454 @@
+/* ============================================================
+   つきなみ文庫 — ミニマル・白基調
+   一覧はブロック（メイソンリー）、記事は1本の細い読書用カラム。
+   ============================================================ */
+
+:root {
+  --ink: #1a1a1a;
+  --ink-soft: #6b6b6b;
+  --ink-faint: #a8a8a8;
+  --rule: #e8e6e2;
+  --paper: #ffffff;
+  --paper-tint: #f7f6f3;
+
+  --sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP",
+          "Yu Gothic Medium", sans-serif;
+  --serif: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP",
+           Georgia, serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --measure: 34rem;   /* 記事の1行の長さ */
+  --wide: 1180px;     /* 一覧の横幅 */
+}
+
+* { box-sizing: border-box; }
+
+html { font-size: 17px; -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  line-height: 1.85;
+  font-feature-settings: "palt" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; }
+main { max-width: var(--wide); margin: 0 auto; padding: 0 1.5rem; }
+
+/* ---------------------------------------------- ヘッダー / フッター */
+.site-header {
+  max-width: var(--wide);
+  margin: 0 auto;
+  padding: 3rem 1.5rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.site-title {
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.site-nav {
+  display: flex;
+  gap: 1.2rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.site-nav a {
+  text-decoration: none;
+  padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+  transition: border-color .2s, color .2s;
+}
+
+.site-nav a:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+.site-nav .icon-link { border-bottom: 0; line-height: 0; align-self: center; opacity: .55; transition: opacity .2s; }
+.site-nav .icon-link:hover { border-bottom: 0; opacity: 1; }
+
+.site-footer {
+  max-width: var(--wide);
+  margin: 6rem auto 0;
+  padding: 2rem 1.5rem 4rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.site-footer p { margin: 0; }
+
+.empty {
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+  margin: 2rem 0;
+}
+
+/* ---------------------------------------------- 絞り込みピル */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 3rem 0 2.2rem;
+}
+
+.pill {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  transition: border-color .2s, color .2s, background .2s;
+}
+
+.pill sup { font-size: 0.62rem; margin-left: 0.35em; color: var(--ink-faint); }
+.pill:hover { border-color: var(--ink-faint); color: var(--ink); }
+.pill.is-on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.pill.is-on sup { color: rgba(255, 255, 255, .6); }
+
+/* ---------------------------------------------- ブロック一覧 */
+.grid {
+  column-count: 4;
+  column-gap: 1.1rem;
+}
+
+.card {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+  margin: 0 0 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--paper);
+  transition: border-color .2s, transform .2s;
+}
+
+.card:hover { border-color: var(--ink-faint); transform: translateY(-2px); }
+.card > a { display: block; text-decoration: none; }
+
+.card-cover { line-height: 0; background: var(--paper-tint); }
+.card-cover img { width: 100%; height: auto; display: block; }
+
+.card-body { padding: 0.95rem 1rem 0.6rem; }
+
+.card-body time {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-body h3 {
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  font-weight: 500;
+  line-height: 1.55;
+  margin: 0.3rem 0 0.35rem;
+}
+
+.card-body p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+
+.card.size-s .card-body h3 { font-size: 1.1rem; }
+.card.size-l .card-body h3 { font-size: 1.12rem; }
+.card.has-cover .card-body h3 { font-size: 1rem; }
+
+.card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0 1rem 0.95rem;
+}
+
+.card-foot:empty { padding: 0 0 0.35rem; }
+
+.chip {
+  font-size: 0.65rem;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  background: var(--paper-tint);
+  border-radius: 3px;
+  padding: 0.1rem 0.45rem;
+}
+
+.chip::before { content: "📖"; display: none; }
+
+.tag { font-size: 0.65rem; letter-spacing: 0.06em; color: var(--ink-faint); }
+.tag::before { content: "#"; }
+
+@media (max-width: 1000px) { .grid { column-count: 3; } }
+@media (max-width: 720px)  { .grid { column-count: 2; } }
+@media (max-width: 460px)  { .grid { column-count: 1; } }
+
+/* ---------------------------------------------- 本棚 */
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1.6rem 1.2rem;
+  margin: 3.5rem 0 3rem;
+}
+
+.shelf-item { text-decoration: none; display: block; }
+
+.thumb {
+  aspect-ratio: 5 / 7;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--paper-tint);
+  transition: border-color .2s, transform .2s;
+}
+
+.shelf-item:hover .thumb { border-color: var(--ink-faint); transform: translateY(-3px); }
+.thumb.has-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.thumb.no-img {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.9rem 0.7rem;
+  font-family: var(--serif);
+}
+
+.spine-title { font-size: 0.85rem; line-height: 1.5; color: var(--ink); }
+.spine-author { font-size: 0.65rem; color: var(--ink-faint); letter-spacing: 0.05em; }
+
+.shelf-meta { display: flex; flex-direction: column; margin-top: 0.6rem; line-height: 1.6; }
+.shelf-title { font-family: var(--serif); font-size: 0.85rem; }
+.shelf-author { font-size: 0.7rem; color: var(--ink-soft); }
+.shelf-count { font-size: 0.66rem; color: var(--ink-faint); letter-spacing: 0.05em; }
+
+/* ---------------------------------------------- 本の詳細 */
+.book-head {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 2.2rem;
+  margin: 3.5rem 0 3rem;
+  max-width: 46rem;
+}
+
+.thumb.big { aspect-ratio: 5 / 7; }
+.thumb.big .spine-title { font-size: 1rem; }
+
+.book-info h1 {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0 0 0.5rem;
+}
+
+.book-meta { margin: 0 0 1.2rem; font-size: 0.82rem; color: var(--ink-soft); letter-spacing: 0.04em; }
+
+.book-note {
+  font-family: var(--serif);
+  font-size: 0.92rem;
+  line-height: 1.95;
+  color: var(--ink);
+  border-left: 1px solid var(--rule);
+  padding-left: 1.1rem;
+}
+
+.book-note p { margin: 0 0 1em; }
+.book-note p:last-child { margin-bottom: 0; }
+
+.book-link { margin: 1.2rem 0 0; font-size: 0.78rem; }
+.book-link a { color: var(--ink-soft); }
+
+@media (max-width: 620px) {
+  .book-head { grid-template-columns: 120px 1fr; gap: 1.2rem; }
+  .book-info h1 { font-size: 1.2rem; }
+}
+
+/* ---------------------------------------------- 言及一覧 */
+.mentions { max-width: 46rem; border-top: 1px solid var(--rule); padding-top: 1.8rem; }
+
+.mention { padding: 0 0 1.8rem; margin-bottom: 1.8rem; border-bottom: 1px solid var(--rule); }
+.mention:last-of-type { border-bottom: 0; }
+
+.mention blockquote {
+  margin: 0 0 0.8rem;
+  padding-left: 1.1rem;
+  border-left: 1px solid var(--rule);
+  font-family: var(--serif);
+  font-size: 0.95rem;
+  line-height: 2.0;
+}
+
+.mention blockquote p { margin: 0 0 0.9em; }
+.mention blockquote p:last-child { margin-bottom: 0; }
+
+.mention-src {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  transition: color .2s;
+}
+
+.mention-src:hover { color: var(--ink); }
+
+/* ---------------------------------------------- 記事ページ */
+.post, .rel, .post-nav, .back { max-width: var(--measure); margin-left: auto; margin-right: auto; }
+
+.post-header { margin: 4rem 0 3rem; }
+
+.post-header time {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.post-header h1 {
+  font-family: var(--serif);
+  font-size: 1.55rem;
+  font-weight: 500;
+  line-height: 1.55;
+  margin: 0.6rem 0 0.7rem;
+}
+
+.post-header .tags { display: flex; gap: 0.6rem; }
+
+.post-body {
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  line-height: 2.0;
+  letter-spacing: 0.02em;
+}
+
+.post-body p { margin: 0 0 1.9em; }
+.post-body h2 { font-size: 1.12rem; font-weight: 500; margin: 3.2em 0 1.2em; letter-spacing: 0.03em; }
+.post-body h3 { font-size: 1rem; font-weight: 500; color: var(--ink-soft); margin: 2.6em 0 1em; }
+.post-body ul, .post-body ol { margin: 0 0 1.9em; padding-left: 1.4em; }
+.post-body li { margin-bottom: 0.5em; }
+
+.post-body a {
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 1px;
+  transition: border-color .2s;
+}
+
+.post-body a:hover { border-bottom-color: var(--ink); }
+
+/* [[リンク]] */
+.wikilink { border-bottom: 1px solid var(--ink-faint); }
+.wikilink.book { border-bottom-style: solid; background: var(--paper-tint); padding: 0.05em 0.25em; border-radius: 2px; }
+.link-missing { color: var(--ink-faint); border-bottom: 1px dotted var(--ink-faint); }
+
+.post-body blockquote {
+  margin: 2.4em 0;
+  padding: 0.2em 0 0.2em 1.4em;
+  border-left: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.95em;
+}
+
+.post-body blockquote p:last-child { margin-bottom: 0; }
+.post-body img { max-width: 100%; height: auto; display: block; margin: 2.4em auto; }
+.post-body hr { border: 0; height: 1px; background: var(--rule); margin: 3.5em auto; width: 4rem; }
+
+.post-body code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--paper-tint);
+  padding: 0.1em 0.35em;
+  border-radius: 2px;
+}
+
+.post-body pre {
+  background: var(--paper-tint);
+  padding: 1.1rem 1.2rem;
+  overflow-x: auto;
+  border-radius: 3px;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  margin: 2.2em 0;
+}
+
+.post-body pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------------------------------------------- 関連（相互リンク） */
+.rel { margin-top: 3.5rem; }
+
+.rel { display: grid; grid-template-columns: 2.2rem 1fr; align-items: start; margin-top: 2.2rem; }
+
+.rel h2 {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-faint);
+  margin: 0;
+  line-height: 1.9;
+}
+
+.rel ul { list-style: none; margin: 0; padding: 0; }
+.rel li { margin-bottom: 0.3rem; }
+
+.rel a {
+  text-decoration: none;
+  font-size: 0.85rem;
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  transition: border-color .2s;
+}
+
+.rel a:hover { border-bottom-color: var(--ink); }
+
+/* ---------------------------------------------- 前後の記事 */
+.post-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.82rem;
+}
+
+.post-nav a { text-decoration: none; color: var(--ink-soft); transition: color .2s; }
+.post-nav a:hover { color: var(--ink); }
+.post-nav .next { text-align: right; }
+
+.back { margin: 2.5rem auto 0; font-size: 0.78rem; letter-spacing: 0.05em; }
+.back a { color: var(--ink-faint); text-decoration: none; transition: color .2s; }
+.back a:hover { color: var(--ink); }
+
+/* ---------------------------------------------- ネットワーク図 */
+.graph-wrap { margin-top: 2.5rem; }
+#graph { display: block; }
+
+/* ---------------------------------------------- スマホ / 印刷 */
+@media (max-width: 600px) {
+  html { font-size: 16px; }
+  .site-header { padding-top: 2rem; }
+  .post-header { margin: 2.5rem 0 2.2rem; }
+  .post-header h1 { font-size: 1.35rem; }
+  .post-body { font-size: 1rem; line-height: 1.95; }
+}
+
+@media print {
+  .site-nav, .post-nav, .back, .site-footer, .pills, .graph-wrap { display: none; }
+  body { color: #000; }
+}
