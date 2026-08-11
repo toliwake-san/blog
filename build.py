@@ -2,13 +2,17 @@
 """
 つきなみ文庫 ビルドスクリプト（外部ライブラリ不要 / Python 3.8+）
 
-posts/*.md と books/*.md を読み込んで docs/ に静的サイトを書き出します。
+    python3 build.py           ビルド
+    python3 build.py --serve   ビルドしてローカル確認 (http://localhost:8000)
 
-    python3 build.py           # ビルド
-    python3 build.py --serve   # ビルドしてローカル確認 (http://localhost:8000)
+設計:
+  - 投稿タイプもカテゴリの木構造もない。pages/ 以下はすべて同じスキーマのページ
+  - 構造はリンクによってのみ生まれる
+      tag link  (A is B)     ... frontmatter の tags
+      body link (A refers B) ... 本文中の [[ ]]
+  - ページの性格は layout（page / grid / table / list）で決まる
 """
 
-import hashlib
 import html
 import json
 import os
@@ -16,20 +20,20 @@ import re
 import shutil
 import sys
 from datetime import datetime
+from urllib.parse import quote
 
 # ---------------------------------------------------------------- 設定
 SITE_TITLE = "つきなみ文庫"
 SITE_DESCRIPTION = "読んだ本と、日々のこと。"
 AUTHOR = "asage"
-BASE_URL = "https://toliwake-san.github.io/blog"  # 公開URL。RSS用
+BASE_URL = "https://toliwake-san.github.io/blog"
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-POSTS_DIR = os.path.join(ROOT, "posts")
-BOOKS_DIR = os.path.join(ROOT, "books")
 PAGES_DIR = os.path.join(ROOT, "pages")
 STATIC_DIR = os.path.join(ROOT, "static")
-# GitHub Pages が公開できるのは "/" か "/docs" だけなので docs にしてある
 OUT_DIR = os.path.join(ROOT, "docs")
+
+LAYOUTS = ("page", "grid", "table", "list")
 
 
 # ---------------------------------------------------------------- Markdown
@@ -58,8 +62,7 @@ def md_to_html(md):
     lines = md.replace("\r\n", "\n").split("\n")
     out, i = [], 0
     while i < len(lines):
-        line = lines[i]
-        s = line.strip()
+        line, s = lines[i], lines[i].strip()
         if not s:
             i += 1
             continue
@@ -80,7 +83,8 @@ def md_to_html(md):
             continue
         m = re.match(r"^(#{1,4})\s+(.*)$", s)
         if m:
-            out.append(f"<h{min(len(m.group(1)) + 1, 6)}>{_inline(m.group(2))}</h{min(len(m.group(1)) + 1, 6)}>")
+            lv = min(len(m.group(1)) + 1, 6)
+            out.append(f"<h{lv}>{_inline(m.group(2))}</h{lv}>")
             i += 1
             continue
         if s.startswith(">"):
@@ -135,90 +139,114 @@ def csv_list(s):
     return [x.strip() for x in (s or "").replace("、", ",").split(",") if x.strip()]
 
 
-def short_hash(s):
-    return hashlib.md5(s.encode("utf-8")).hexdigest()[:8]
+def truthy(v, default=False):
+    if v is None or v == "":
+        return default
+    return str(v).strip().lower() in ("true", "yes", "1", "on")
+
+
+# ---------------------------------------------------------------- 識別子
+def to_uri(path):
+    """path → uri。半角スペースを _ に。"""
+    return path.replace(" ", "_")
+
+
+def to_slug(uri):
+    """uri → slug。DB検索用の正規化キー。"""
+    return uri.lower()
+
+
+def url_of(page, from_depth=0):
+    up = "../" * from_depth
+    return up + quote(page["uri"], safe="/") + ".html"
+
+
+def asset(path, from_depth=0):
+    if path.startswith(("http://", "https://", "//")):
+        return path
+    return "../" * from_depth + quote(path.lstrip("/"), safe="/")
 
 
 # ---------------------------------------------------------------- 読み込み
-def load_books():
-    books = {}
-    if not os.path.isdir(BOOKS_DIR):
-        return books
-    for name in sorted(os.listdir(BOOKS_DIR)):
-        if not name.endswith(".md") or name.startswith("_"):
-            continue
-        with open(os.path.join(BOOKS_DIR, name), encoding="utf-8") as f:
-            meta, body = parse_front_matter(f.read())
-        title = meta.get("title") or name[:-3]
-        base = name[:-3]
-        slug = meta.get("slug") or (base if re.fullmatch(r"[A-Za-z0-9_-]+", base) else "b-" + short_hash(title))
-        books[title] = {
-            "kind": "book",
-            "title": title,
-            "author": meta.get("author", ""),
-            "year": meta.get("year", ""),
-            "cover": meta.get("cover", ""),
-            "link": meta.get("link", ""),
-            "rating": meta.get("rating", ""),
-            "aliases": csv_list(meta.get("aliases", "")),
-            "note": md_to_html(body) if body else "",
-            "slug": slug,
-            "url": f"books/{slug}.html",
-            "mentions": [],
-        }
-    return books
+def new_page(path, meta=None, body_md="", virtual=False, mtime=None):
+    meta = meta or {}
+    uri = to_uri(path)
+    layout = (meta.get("layout") or "page").lower()
+    if layout not in LAYOUTS:
+        layout = "page"
 
-
-def load_posts():
-    posts = []
-    if not os.path.isdir(POSTS_DIR):
-        return posts
-    for name in sorted(os.listdir(POSTS_DIR)):
-        if not name.endswith(".md") or name.startswith("_"):
-            continue
-        path = os.path.join(POSTS_DIR, name)
-        with open(path, encoding="utf-8") as f:
-            meta, body = parse_front_matter(f.read())
-        if meta.get("draft", "").lower() in ("true", "yes", "1"):
-            continue
-        slug = meta.get("slug") or re.sub(r"^\d{4}-\d{2}-\d{2}-", "", name[:-3])
-        if not re.fullmatch(r"[A-Za-z0-9_.-]+", slug):
-            slug = "p-" + short_hash(name)
-        date = meta.get("date") or name[:10]
+    date_raw = meta.get("date", "")
+    dt = None
+    if date_raw:
         try:
-            dt = datetime.strptime(date[:10], "%Y-%m-%d")
+            dt = datetime.strptime(date_raw[:10], "%Y-%m-%d")
         except ValueError:
-            dt = datetime.fromtimestamp(os.path.getmtime(path))
-        posts.append(
-            {
-                "kind": "post",
-                "slug": slug,
-                "title": meta.get("title") or slug,
-                "date": dt,
-                "date_str": dt.strftime("%Y年%m月%d日"),
-                "short_date": dt.strftime("%Y.%m.%d"),
-                "iso": dt.strftime("%Y-%m-%d"),
-                "tags": csv_list(meta.get("tags", "")),
-                "book_tags": csv_list(meta.get("books", "")),
-                "cover": meta.get("cover", ""),
-                "raw_html": md_to_html(body),
-                "url": f"posts/{slug}.html",
-                "excerpt": meta.get("excerpt", ""),
-                "links_out": [],
-                "backlinks": [],
-            }
-        )
-    posts.sort(key=lambda p: (p["date"], p["slug"]), reverse=True)
-    return posts
+            dt = None
+    if dt is None:
+        dt = datetime.fromtimestamp(mtime) if mtime else datetime(1970, 1, 1)
+
+    visibility = (meta.get("visibility") or "public").lower()
+    if visibility not in ("public", "unlisted", "private"):
+        visibility = "public"
+
+    # permanent は明示がなければ true。layout が page 以外なら常に true
+    permanent = truthy(meta.get("permanent"), default=True) or layout != "page"
+
+    return {
+        "path": path,
+        "uri": uri,
+        "slug": to_slug(uri),
+        "depth": path.count("/"),
+        "title": meta.get("title") or path.rsplit("/", 1)[-1],
+        "date": dt,
+        "has_date": bool(date_raw),
+        "date_str": dt.strftime("%Y年%m月%d日"),
+        "short_date": dt.strftime("%Y.%m.%d"),
+        "iso": dt.strftime("%Y-%m-%d"),
+        "tag_names": csv_list(meta.get("tags", "")),
+        "layout": layout,
+        "visibility": visibility,
+        "permanent": permanent,
+        "cover": meta.get("cover", ""),
+        "nav": meta.get("nav", ""),
+        "on_home": truthy(meta.get("home"), default=True),
+        "excerpt_fm": meta.get("excerpt", ""),
+        "source": body_md,
+        "raw_html": md_to_html(body_md) if body_md else "",
+        "virtual": virtual,
+        "tag_links": [],       # このページが tag link で指すページ
+        "body_links": [],      # このページが body link で指すページ
+        "back_tag": [],        # tag link で指されている（= 分類されている）
+        "back_body": [],       # body link で言及されている
+        "quotes": {},          # 相手slug -> このページ内の言及段落
+    }
 
 
-# ---------------------------------------------------------------- リンク解決
+def load_pages():
+    pages = {}
+    if not os.path.isdir(PAGES_DIR):
+        return pages
+    for dirpath, _, filenames in os.walk(PAGES_DIR):
+        for name in sorted(filenames):
+            if not name.endswith(".md") or name.startswith("_"):
+                continue
+            full = os.path.join(dirpath, name)
+            rel = os.path.relpath(full, PAGES_DIR)[:-3].replace(os.sep, "/")
+            with open(full, encoding="utf-8") as f:
+                meta, body = parse_front_matter(f.read())
+            p = new_page(rel, meta, body, mtime=os.path.getmtime(full))
+            if p["visibility"] == "private":
+                continue
+            pages[p["slug"]] = p
+    return pages
+
+
+# ---------------------------------------------------------------- リンク
 LINK_RE = re.compile(r"\[\[([^\[\]|]+?)(?:\|([^\[\]]+?))?\]\]")
 CODE_RE = re.compile(r"<pre>.*?</pre>|<code>.*?</code>", re.S)
 
 
 def outside_code(text, fn):
-    """<code> や <pre> の中身には手を触れずに置換する。"""
     out, last = [], 0
     for m in CODE_RE.finditer(text):
         out.append(fn(text[last:m.start()]))
@@ -228,98 +256,116 @@ def outside_code(text, fn):
     return "".join(out)
 
 
-def build_graph(posts, books):
-    """[[...]] を解決し、本への言及とバックリンクを集める。"""
-    index = {}  # 表示名 -> ノード
-    for b in books.values():
-        index[b["title"]] = b
-        for a in b["aliases"]:
-            index.setdefault(a, b)
-    for p in posts:
-        index.setdefault(p["title"], p)
+def resolve(pages, by_title, name):
+    return pages.get(to_slug(to_uri(name))) or by_title.get(name)
 
-    for p in posts:
-        p["mention_targets"] = {}
 
-        # 段落ごとに、どのノードに言及しているかを記録（本ページの引用に使う）
+def build_graph(pages):
+    """tag link を辿ってページを自動生成し、リンクとバックリンクを張る。"""
+    # tags で参照されているのに実体がないページを作る
+    added = True
+    while added:
+        added = False
+        for p in list(pages.values()):
+            for t in p["tag_names"]:
+                s = to_slug(to_uri(t))
+                if s not in pages:
+                    v = new_page(t, {"layout": "grid", "home": "false"}, virtual=True)
+                    pages[v["slug"]] = v
+                    added = True
+
+    by_title = {}
+    for p in pages.values():
+        by_title.setdefault(p["title"], p)
+
+    # tag link
+    for p in pages.values():
+        for t in p["tag_names"]:
+            target = resolve(pages, by_title, t)
+            if target and target is not p:
+                p["tag_links"].append(target)
+                if p["visibility"] == "public":
+                    target["back_tag"].append(p)
+
+    # body link
+    for p in pages.values():
         for para in re.findall(r"<p>.*?</p>", p["raw_html"], re.S):
-            para = CODE_RE.sub("", para)
-            names = [m.group(1).strip() for m in LINK_RE.finditer(para)]
-            for n in names:
-                node = index.get(n)
-                if node and node is not p:
-                    quote = strip_tags(LINK_RE.sub(lambda m: m.group(2) or m.group(1), para))
-                    p["mention_targets"].setdefault(node["title"], []).append(quote)
+            clean = CODE_RE.sub("", para)
+            for m in LINK_RE.finditer(clean):
+                target = resolve(pages, by_title, m.group(1).strip())
+                if target and target is not p:
+                    quote_txt = strip_tags(LINK_RE.sub(lambda x: x.group(2) or x.group(1), clean))
+                    p["quotes"].setdefault(target["slug"], []).append(quote_txt)
 
-        # 本文リンクを <a> に置き換え
         def repl(m, _p=p):
             name = m.group(1).strip()
             label = (m.group(2) or name).strip()
-            node = index.get(name)
-            if not node or node is _p:
-                return f'<span class="link-missing" title="リンク先がありません">{html.escape(label)}</span>'
-            if node["title"] not in [x["title"] for x in _p["links_out"]]:
-                _p["links_out"].append(node)
-            cls = "wikilink book" if node["kind"] == "book" else "wikilink"
-            return f'<a class="{cls}" href="../{node["url"]}">{html.escape(label)}</a>'
+            target = resolve(pages, by_title, name)
+            if not target or target is _p:
+                return f'<span class="link-missing">{html.escape(label)}</span>'
+            if target not in _p["body_links"]:
+                _p["body_links"].append(target)
+                if _p["visibility"] == "public":
+                    target["back_body"].append(_p)
+            return f'<a class="wikilink" href="{url_of(target, _p["depth"])}">{html.escape(label)}</a>'
 
-        p["html"] = outside_code(p["raw_html"], lambda t: LINK_RE.sub(repl, t))
+        body = outside_code(p["raw_html"], lambda t: LINK_RE.sub(repl, t))
+        # 画像やリンクの相対パスを深さに合わせる
+        if p["depth"]:
+            body = re.sub(
+                r'(<img [^>]*src=")(?!https?://|\.\./|/)([^"]+)"',
+                lambda m: m.group(1) + asset(m.group(2), p["depth"]) + '"',
+                body,
+            )
+        p["html"] = body
 
-        plain = strip_tags(p["html"])
-        if not p["excerpt"]:
-            p["excerpt"] = plain[:110] + ("…" if len(plain) > 110 else "")
+        plain = strip_tags(body)
+        p["excerpt"] = p["excerpt_fm"] or (plain[:110] + ("…" if len(plain) > 110 else ""))
         p["length"] = len(plain)
 
-        # front matter の books: も参照に加える
-        for name in p["book_tags"]:
-            node = index.get(name)
-            if node and node["kind"] == "book" and node["title"] not in [x["title"] for x in p["links_out"]]:
-                p["links_out"].append(node)
-
-    # バックリンクと、本ごとの言及を集約
-    by_title = {p["title"]: p for p in posts}
-    for p in posts:
-        for node in p["links_out"]:
-            if node["kind"] == "book":
-                quotes = p["mention_targets"].get(node["title"]) or [p["excerpt"]]
-                node["mentions"].append({"post": p, "quotes": quotes})
-            else:
-                target = by_title.get(node["title"])
-                if target is not None and p["title"] not in [x["title"] for x in target["backlinks"]]:
-                    target["backlinks"].append(p)
-
-    for b in books.values():
-        b["mentions"].sort(key=lambda m: m["post"]["date"], reverse=True)
-    return index
+    for p in pages.values():
+        for key in ("back_tag", "back_body"):
+            p[key].sort(key=lambda x: (x["date"], x["title"]), reverse=True)
+    return pages
 
 
 # ---------------------------------------------------------------- テンプレート
-def layout(title, body, depth=0, is_home=False, desc="", extra_head="", extra_body=""):
-    up = "../" * depth
+def layout_html(page, pages, body, extra_body=""):
+    d = page["depth"] if page else 0
+    up = "../" * d
     site = html.escape(SITE_TITLE)
+    is_home = page is None
+    title = SITE_TITLE if is_home else page["title"]
     head_title = site if is_home else f"{html.escape(title)} — {site}"
-    description = html.escape(desc or SITE_DESCRIPTION)
+    desc = html.escape(SITE_DESCRIPTION if is_home else (page["excerpt"] or SITE_DESCRIPTION))
+    robots = "" if is_home or page["permanent"] else '\n<meta name="robots" content="noindex, nofollow">'
+
+    nav_items = sorted(
+        [p for p in pages.values() if str(p["nav"]).strip()],
+        key=lambda p: (str(p["nav"]), p["title"]),
+    )
+    nav = f'<a href="{up}index.html">記事</a>' + "".join(
+        f'<a href="{url_of(p, d)}">{html.escape(p["title"])}</a>' for p in nav_items
+    )
+
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{head_title}</title>
-<meta name="description" content="{description}">
+<meta name="description" content="{desc}">{robots}
 <meta property="og:title" content="{head_title}">
-<meta property="og:description" content="{description}">
+<meta property="og:description" content="{desc}">
 <meta property="og:type" content="{'website' if is_home else 'article'}">
 <link rel="alternate" type="application/rss+xml" title="{site}" href="{up}feed.xml">
-<link rel="stylesheet" href="{up}style.css">{extra_head}
+<link rel="stylesheet" href="{up}style.css">
 </head>
 <body>
 <header class="site-header">
   <a class="site-title" href="{up}index.html">{site}</a>
   <nav class="site-nav">
-    <a href="{up}index.html">記事</a>
-    <a href="{up}books.html">本</a>
-    <a href="{up}about.html">について</a>
-    <a href="{up}feed.xml">RSS</a>
+    {nav}<a href="{up}feed.xml">RSS</a>
     <a class="icon-link" href="{up}network.html" aria-label="つながり">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3">
         <circle cx="6" cy="17" r="2.4"/><circle cx="18" cy="17" r="2.4"/><circle cx="12" cy="6" r="2.4"/>
@@ -339,52 +385,45 @@ def layout(title, body, depth=0, is_home=False, desc="", extra_head="", extra_bo
 """
 
 
-def book_thumb(b, up="", cls="thumb"):
-    """表紙画像があればそれを、なければ書影代わりの文字組みを出す。"""
-    if b["cover"]:
-        src = b["cover"] if b["cover"].startswith("http") else up + b["cover"].lstrip("/")
-        return f'<div class="{cls} has-img"><img src="{html.escape(src)}" alt="{html.escape(b["title"])}" loading="lazy"></div>'
-    return (
-        f'<div class="{cls} no-img"><span class="spine-title">{html.escape(b["title"])}</span>'
-        f'<span class="spine-author">{html.escape(b["author"])}</span></div>'
-    )
+def card_html(p, depth):
+    cover = ""
+    if p["cover"]:
+        cover = f'<div class="card-cover"><img src="{asset(p["cover"], depth)}" alt="" loading="lazy"></div>'
+    size = "s" if p["length"] < 160 else ("l" if p["length"] > 900 else "m")
+    tags = "".join(f'<span class="tag">{html.escape(t["title"])}</span>' for t in p["tag_links"])
+    date = f'<time datetime="{p["iso"]}">{p["short_date"]}</time>' if p["has_date"] else ""
+    excerpt = html.escape(p["excerpt"] if size != "s" else p["excerpt"][:60])
+    return f"""<article class="card size-{size}{' has-cover' if cover else ''}" data-tags="{html.escape(' '.join(t['title'] for t in p['tag_links']))}">
+  <a href="{url_of(p, depth)}">
+    {cover}
+    <div class="card-body">
+      {date}
+      <h3>{html.escape(p['title'])}</h3>
+      <p>{excerpt}</p>
+    </div>
+  </a>
+  <div class="card-foot">{tags}</div>
+</article>"""
+
+
+def listed(items):
+    return [p for p in items if p["visibility"] == "public"]
 
 
 # ---------------------------------------------------------------- 各ページ
-def render_index(posts, books):
-    tag_counts = {}
-    for p in posts:
-        for t in p["tags"]:
-            tag_counts[t] = tag_counts.get(t, 0) + 1
-    pills = [f'<button class="pill is-on" data-tag="*">すべて<sup>{len(posts)}</sup></button>']
-    for t, c in sorted(tag_counts.items(), key=lambda kv: -kv[1]):
+def render_home(pages):
+    items = sorted(
+        [p for p in pages.values() if p["visibility"] == "public" and p["on_home"]],
+        key=lambda p: (p["date"], p["title"]),
+        reverse=True,
+    )
+    counts = {}
+    for p in items:
+        for t in p["tag_links"]:
+            counts[t["title"]] = counts.get(t["title"], 0) + 1
+    pills = [f'<button class="pill is-on" data-tag="*">すべて<sup>{len(items)}</sup></button>']
+    for t, c in sorted(counts.items(), key=lambda kv: -kv[1]):
         pills.append(f'<button class="pill" data-tag="{html.escape(t)}">{html.escape(t)}<sup>{c}</sup></button>')
-
-    cards = []
-    for p in posts:
-        size = "s" if p["length"] < 160 else ("l" if p["length"] > 900 else "m")
-        cover = ""
-        if p["cover"]:
-            src = p["cover"] if p["cover"].startswith("http") else p["cover"].lstrip("/")
-            cover = f'<div class="card-cover"><img src="{html.escape(src)}" alt="" loading="lazy"></div>'
-        refs = "".join(
-            f'<span class="chip">{html.escape(n["title"])}</span>'
-            for n in p["links_out"] if n["kind"] == "book"
-        )
-        excerpt = p["excerpt"] if size != "s" else p["excerpt"][:60]
-        cards.append(
-            f"""<article class="card size-{size}{' has-cover' if cover else ''}" data-tags="{html.escape(' '.join(p['tags']))}">
-  <a href="{p['url']}">
-    {cover}
-    <div class="card-body">
-      <time datetime="{p['iso']}">{p['short_date']}</time>
-      <h3>{html.escape(p['title'])}</h3>
-      <p>{html.escape(excerpt)}</p>
-    </div>
-  </a>
-  <div class="card-foot">{refs}{''.join(f'<span class="tag">{html.escape(t)}</span>' for t in p['tags'])}</div>
-</article>"""
-        )
 
     js = """<script>
 document.querySelectorAll('.pill').forEach(function (btn) {
@@ -398,128 +437,81 @@ document.querySelectorAll('.pill').forEach(function (btn) {
   });
 });
 </script>"""
-
-    body = f"""<div class="pills">{''.join(pills)}</div>
-<div class="grid">
-{''.join(cards)}
-</div>"""
-    return layout(SITE_TITLE, body, is_home=True, extra_body=js)
+    body = (f'<div class="pills">{"".join(pills)}</div>'
+            f'<div class="grid">{"".join(card_html(p, 0) for p in items)}</div>')
+    return layout_html(None, pages, body, extra_body=js)
 
 
-def render_post(p, newer, older):
-    tags = "".join(f'<span class="tag">{html.escape(t)}</span>' for t in p["tags"])
+def render_page(p, pages):
+    d = p["depth"]
+    head_tags = "".join(
+        f'<a class="tag" href="{url_of(t, d)}">{html.escape(t["title"])}</a>' for t in p["tag_links"]
+    )
+    date = f'<time datetime="{p["iso"]}">{p["date_str"]}</time>' if p["has_date"] else ""
+    note = "" if p["permanent"] else '<span class="note-flag" title="書きかけのメモ">note</span>'
 
-    out_html = ""
-    if p["links_out"]:
-        items = "".join(
-            f'<li><a href="../{n["url"]}">{html.escape(n["title"])}</a></li>' for n in p["links_out"]
-        )
-        out_html = f'<section class="rel"><h2 aria-label="この記事から">→</h2><ul>{items}</ul></section>'
-
-    back_html = ""
-    if p["backlinks"]:
-        items = "".join(
-            f'<li><a href="{b["slug"]}.html">{html.escape(b["title"])}</a></li>' for b in p["backlinks"]
-        )
-        back_html = f'<section class="rel"><h2 aria-label="この記事に触れている記事">←</h2><ul>{items}</ul></section>'
-
-    nav = []
-    if newer:
-        nav.append(f'<a class="prev" href="{newer["slug"]}.html">← {html.escape(newer["title"])}</a>')
-    if older:
-        nav.append(f'<a class="next" href="{older["slug"]}.html">{html.escape(older["title"])} →</a>')
-    nav_html = f'<nav class="post-nav">{"".join(nav)}</nav>' if nav else ""
-
-    body = f"""<article class="post">
-  <header class="post-header">
-    <time datetime="{p['iso']}">{p['date_str']}</time>
+    header = f"""<header class="post-header">
+    {date}{note}
     <h1>{html.escape(p['title'])}</h1>
-    <div class="tags">{tags}</div>
-  </header>
-  <div class="post-body">
-{p['html']}
-  </div>
-</article>
-{out_html}{back_html}
-{nav_html}
-<p class="back"><a href="../index.html">一覧へ戻る</a></p>"""
-    return layout(p["title"], body, depth=1, desc=p["excerpt"])
+    <div class="tags">{head_tags}</div>
+  </header>"""
+    body_html = f'<div class="post-body">{p["html"]}</div>' if p["html"] else ""
+    out = [f'<article class="post">{header}{body_html}</article>']
 
+    back_tag, back_body = listed(p["back_tag"]), listed(p["back_body"])
 
-def render_books_index(books):
-    items = []
-    for b in sorted(books.values(), key=lambda x: (-len(x["mentions"]), x["title"])):
-        n = len(b["mentions"])
-        items.append(
-            f"""<a class="shelf-item" href="{b['url']}">
-  {book_thumb(b)}
-  <div class="shelf-meta">
-    <span class="shelf-title">{html.escape(b['title'])}</span>
-    <span class="shelf-author">{html.escape(b['author'])}</span>
-    <span class="shelf-count">{n}</span>
-  </div>
-</a>"""
+    if p["layout"] == "grid":
+        out.append(f'<div class="grid">{"".join(card_html(x, d) for x in back_tag)}</div>')
+    elif p["layout"] == "table":
+        rows = "".join(
+            f'<tr><td class="c-date">{x["short_date"] if x["has_date"] else ""}</td>'
+            f'<td><a href="{url_of(x, d)}">{html.escape(x["title"])}</a></td>'
+            f'<td class="c-tags">{"".join(html.escape(t["title"]) + " " for t in x["tag_links"])}</td></tr>'
+            for x in back_tag
         )
-    empty = "" if items else '<p class="empty">—</p>'
-    body = f'<div class="shelf">{"".join(items)}</div>{empty}'
-    return layout("本", body, desc="読んだ本の一覧")
+        out.append(f'<table class="rows">{rows}</table>')
+    elif p["layout"] == "list":
+        items = "".join(f'<li><a href="{url_of(x, d)}">{html.escape(x["title"])}</a></li>' for x in back_tag)
+        out.append(f'<section class="rel"><h2 aria-label="ここに属するページ">↳</h2><ul>{items}</ul></section>')
+    elif back_tag:
+        items = "".join(f'<li><a href="{url_of(x, d)}">{html.escape(x["title"])}</a></li>' for x in back_tag)
+        out.append(f'<section class="rel"><h2 aria-label="ここに属するページ">↳</h2><ul>{items}</ul></section>')
 
+    # body link のバックリンク = 言及。grid / table では出さない
+    if back_body and p["layout"] not in ("grid", "table"):
+        blocks = []
+        for x in back_body:
+            quotes = x["quotes"].get(p["slug"]) or [x["excerpt"]]
+            qs = "".join(f"<p>{html.escape(q)}</p>" for q in quotes)
+            label = f'{x["short_date"]}　' if x["has_date"] else ""
+            blocks.append(
+                f'<article class="mention"><blockquote>{qs}</blockquote>'
+                f'<a class="mention-src" href="{url_of(x, d)}">{label}{html.escape(x["title"])} →</a></article>'
+            )
+        out.append(f'<section class="mentions">{"".join(blocks)}</section>')
 
-def render_book(b):
-    meta_bits = []
-    if b["author"]:
-        meta_bits.append(html.escape(b["author"]))
-    if b["year"]:
-        meta_bits.append(html.escape(b["year"]))
-    link = f'<p class="book-link"><a href="{html.escape(b["link"])}">この本について →</a></p>' if b["link"] else ""
-
-    mentions = []
-    for m in b["mentions"]:
-        p = m["post"]
-        quotes = "".join(f"<p>{html.escape(q)}</p>" for q in m["quotes"])
-        mentions.append(
-            f"""<article class="mention">
-  <blockquote>{quotes}</blockquote>
-  <a class="mention-src" href="../{p['url']}">{p['short_date']}　{html.escape(p['title'])} →</a>
-</article>"""
+    if p["body_links"]:
+        items = "".join(
+            f'<li><a href="{url_of(t, d)}">{html.escape(t["title"])}</a></li>' for t in p["body_links"]
         )
-    if not mentions:
-        mentions.append('<p class="empty">—</p>')
+        out.append(f'<section class="rel"><h2 aria-label="このページから">→</h2><ul>{items}</ul></section>')
 
-    body = f"""<div class="book-head">
-  {book_thumb(b, up="../", cls="thumb big")}
-  <div class="book-info">
-    <h1>{html.escape(b['title'])}</h1>
-    <p class="book-meta">{'　'.join(meta_bits)}</p>
-    {f'<div class="book-note">{b["note"]}</div>' if b["note"] else ''}
-    {link}
-  </div>
-</div>
-<section class="mentions">
-  {''.join(mentions)}
-</section>
-<p class="back"><a href="../books.html">本の一覧へ戻る</a></p>"""
-    return layout(b["title"], body, depth=1, desc=f"{b['title']}（{b['author']}）について書いた記事のまとめ")
+    out.append(f'<p class="back"><a href="{"../" * d}index.html">一覧へ戻る</a></p>')
+    return layout_html(p, pages, "\n".join(out))
 
 
-def render_network(posts, books):
-    nodes, edges = [], []
-    idx = {}
-    for p in posts:
-        idx[("post", p["title"])] = len(nodes)
-        nodes.append({"id": p["title"], "t": "post", "u": p["url"], "w": max(1, len(p["backlinks"]) + 1)})
-    for b in books.values():
-        idx[("book", b["title"])] = len(nodes)
-        nodes.append({"id": b["title"], "t": "book", "u": b["url"], "w": max(1, len(b["mentions"]) + 1)})
-    for p in posts:
-        a = idx[("post", p["title"])]
-        for n in p["links_out"]:
-            key = (n["kind"], n["title"])
-            if key in idx:
-                edges.append([a, idx[key]])
+def render_network(pages):
+    items = [p for p in pages.values() if p["visibility"] == "public"]
+    idx = {p["slug"]: i for i, p in enumerate(items)}
+    nodes = [{"id": p["title"], "u": url_of(p, 0),
+              "w": max(1, len(p["back_tag"]) + len(p["back_body"]) + 1)} for p in items]
+    edges = []
+    for p in items:
+        for t in p["tag_links"] + p["body_links"]:
+            if t["slug"] in idx and p["slug"] in idx:
+                edges.append([idx[p["slug"]], idx[t["slug"]]])
 
     data = json.dumps({"nodes": nodes, "edges": edges}, ensure_ascii=False)
-    body = '<div class="graph-wrap"><canvas id="graph"></canvas></div>'
     script = f"""<script>
 var DATA = {data};
 (function () {{
@@ -527,21 +519,17 @@ var DATA = {data};
   var N = DATA.nodes.map(function (n, i) {{
     return {{ d: n, x: Math.cos(i) * 120 + Math.random() * 40, y: Math.sin(i * 1.7) * 120 + Math.random() * 40, vx: 0, vy: 0 }};
   }});
-  var E = DATA.edges;
-  var W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2), hover = null;
+  var E = DATA.edges, W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2), hover = null;
   function size() {{
     W = cv.parentNode.clientWidth; H = Math.max(380, Math.min(560, W * 0.72));
     cv.width = W * DPR; cv.height = H * DPR; cv.style.width = W + 'px'; cv.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }}
   function step() {{
-    for (var i = 0; i < N.length; i++) {{
-      for (var j = i + 1; j < N.length; j++) {{
-        var dx = N[j].x - N[i].x, dy = N[j].y - N[i].y, d2 = dx * dx + dy * dy + 0.01;
-        var f = 900 / d2, d = Math.sqrt(d2);
-        N[i].vx -= f * dx / d; N[i].vy -= f * dy / d;
-        N[j].vx += f * dx / d; N[j].vy += f * dy / d;
-      }}
+    for (var i = 0; i < N.length; i++) for (var j = i + 1; j < N.length; j++) {{
+      var dx = N[j].x - N[i].x, dy = N[j].y - N[i].y, d2 = dx * dx + dy * dy + 0.01;
+      var f = 900 / d2, d = Math.sqrt(d2);
+      N[i].vx -= f * dx / d; N[i].vy -= f * dy / d; N[j].vx += f * dx / d; N[j].vy += f * dy / d;
     }}
     E.forEach(function (e) {{
       var a = N[e[0]], b = N[e[1]], dx = b.x - a.x, dy = b.y - a.y;
@@ -549,8 +537,7 @@ var DATA = {data};
       a.vx += f * dx / d; a.vy += f * dy / d; b.vx -= f * dx / d; b.vy -= f * dy / d;
     }});
     N.forEach(function (n) {{
-      n.vx -= n.x * 0.004; n.vy -= n.y * 0.004;
-      n.vx *= 0.86; n.vy *= 0.86; n.x += n.vx; n.y += n.vy;
+      n.vx -= n.x * 0.004; n.vy -= n.y * 0.004; n.vx *= 0.86; n.vy *= 0.86; n.x += n.vx; n.y += n.vy;
     }});
   }}
   function radius(n) {{ return 4 + Math.min(9, n.d.w * 1.6); }}
@@ -559,19 +546,17 @@ var DATA = {data};
     var rule = css.getPropertyValue('--rule').trim() || '#e8e6e2';
     var ink = css.getPropertyValue('--ink').trim() || '#1a1a1a';
     var soft = css.getPropertyValue('--ink-faint').trim() || '#a8a8a8';
-    ctx.clearRect(0, 0, W, H);
-    ctx.save(); ctx.translate(W / 2, H / 2);
+    ctx.clearRect(0, 0, W, H); ctx.save(); ctx.translate(W / 2, H / 2);
     ctx.strokeStyle = rule; ctx.lineWidth = 1;
     E.forEach(function (e) {{
       ctx.beginPath(); ctx.moveTo(N[e[0]].x, N[e[0]].y); ctx.lineTo(N[e[1]].x, N[e[1]].y); ctx.stroke();
     }});
     N.forEach(function (n) {{
       ctx.beginPath(); ctx.arc(n.x, n.y, radius(n), 0, 6.284);
-      ctx.fillStyle = '#fff'; ctx.fill();
-      ctx.strokeStyle = soft; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = soft; ctx.lineWidth = 1; ctx.stroke();
     }});
     ctx.font = '11px -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = soft;
-    N.forEach(function (n) {{ if (n.d.w > 1 || n === hover) ctx.fillText(n.d.id, n.x, n.y - radius(n) - 5); }});
+    N.forEach(function (n) {{ if (n.d.w > 1) ctx.fillText(n.d.id, n.x, n.y - radius(n) - 5); }});
     if (hover) {{
       ctx.fillStyle = ink; ctx.font = '12px -apple-system, sans-serif';
       ctx.fillText(hover.d.id, hover.x, hover.y - radius(hover) - 5);
@@ -579,8 +564,7 @@ var DATA = {data};
     ctx.restore();
   }}
   function pick(ev) {{
-    var r = cv.getBoundingClientRect(), mx = ev.clientX - r.left - W / 2, my = ev.clientY - r.top - H / 2;
-    var best = null;
+    var r = cv.getBoundingClientRect(), mx = ev.clientX - r.left - W / 2, my = ev.clientY - r.top - H / 2, best = null;
     N.forEach(function (n) {{
       var d = Math.hypot(n.x - mx, n.y - my);
       if (d < radius(n) + 7 && (!best || d < Math.hypot(best.x - mx, best.y - my))) best = n;
@@ -589,44 +573,30 @@ var DATA = {data};
   }}
   cv.addEventListener('mousemove', function (e) {{ hover = pick(e); cv.style.cursor = hover ? 'pointer' : 'default'; }});
   cv.addEventListener('click', function (e) {{ var n = pick(e); if (n) location.href = n.d.u; }});
-  window.addEventListener('resize', size);
-  size();
+  window.addEventListener('resize', size); size();
   var t = 0;
   (function loop() {{ if (t++ < 400) step(); draw(); requestAnimationFrame(loop); }})();
 }})();
 </script>"""
-    return layout("つながり", body, desc="記事と本の参照関係", extra_body=script)
+    return layout_html(None, pages, '<div class="graph-wrap"><canvas id="graph"></canvas></div>',
+                       extra_body=script)
 
 
-def render_page(md_name, fallback_title):
-    path = os.path.join(PAGES_DIR, md_name)
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            meta, body = parse_front_matter(f.read())
-        title = meta.get("title", fallback_title)
-        content = md_to_html(body)
-    else:
-        title, content = fallback_title, "<p>準備中です。</p>"
-    return layout(
-        title,
-        f'<article class="post"><header class="post-header"><h1>{html.escape(title)}</h1></header>'
-        f'<div class="post-body">{content}</div></article>',
-    )
-
-
-def render_feed(posts):
-    items = []
-    for p in posts[:20]:
-        link = f"{BASE_URL}/{p['url']}" if BASE_URL else p["url"]
-        items.append(
-            f"""  <item>
+def render_feed(pages):
+    items = sorted(
+        [p for p in pages.values() if p["visibility"] == "public" and p["has_date"]],
+        key=lambda p: p["date"], reverse=True,
+    )[:20]
+    entries = []
+    for p in items:
+        link = f"{BASE_URL}/{quote(p['uri'], safe='/')}.html" if BASE_URL else url_of(p)
+        entries.append(f"""  <item>
     <title>{html.escape(p['title'])}</title>
     <link>{html.escape(link)}</link>
     <guid isPermaLink="false">{html.escape(p['slug'])}</guid>
     <pubDate>{p['date'].strftime('%a, %d %b %Y 00:00:00 +0900')}</pubDate>
     <description>{html.escape(p['excerpt'])}</description>
-  </item>"""
-        )
+  </item>""")
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
 <channel>
@@ -634,7 +604,7 @@ def render_feed(posts):
   <link>{html.escape(BASE_URL or 'index.html')}</link>
   <description>{html.escape(SITE_DESCRIPTION)}</description>
   <language>ja</language>
-{chr(10).join(items)}
+{chr(10).join(entries)}
 </channel>
 </rss>
 """
@@ -643,30 +613,23 @@ def render_feed(posts):
 # ---------------------------------------------------------------- ビルド
 def write(rel, text):
     path = os.path.join(OUT_DIR, rel)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    os.makedirs(os.path.dirname(path) or OUT_DIR, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
 
 
 def build():
-    books = load_books()
-    posts = load_posts()
-    build_graph(posts, books)
+    pages = build_graph(load_pages())
 
     if os.path.isdir(OUT_DIR):
         shutil.rmtree(OUT_DIR)
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    write("index.html", render_index(posts, books))
-    for i, p in enumerate(posts):
-        write(f"posts/{p['slug']}.html", render_post(p, posts[i - 1] if i > 0 else None,
-                                                     posts[i + 1] if i + 1 < len(posts) else None))
-    write("books.html", render_books_index(books))
-    for b in books.values():
-        write(f"books/{b['slug']}.html", render_book(b))
-    write("network.html", render_network(posts, books))
-    write("about.html", render_page("about.md", "について"))
-    write("feed.xml", render_feed(posts))
+    write("index.html", render_home(pages))
+    for p in pages.values():
+        write(p["uri"] + ".html", render_page(p, pages))
+    write("network.html", render_network(pages))
+    write("feed.xml", render_feed(pages))
 
     if os.path.isdir(STATIC_DIR):
         for name in os.listdir(STATIC_DIR):
@@ -674,11 +637,18 @@ def build():
             shutil.copytree(src, dst) if os.path.isdir(src) else shutil.copy2(src, dst)
     open(os.path.join(OUT_DIR, ".nojekyll"), "w").close()
 
-    missing = sum(p["html"].count('class="link-missing"') for p in posts)
-    print(f"✓ 記事 {len(posts)} / 本 {len(books)} をビルドしました → docs/")
+    real = [p for p in pages.values() if not p["virtual"]]
+    auto = len(pages) - len(real)
+    unlisted = sum(1 for p in pages.values() if p["visibility"] == "unlisted")
+    notes = sum(1 for p in pages.values() if not p["permanent"])
+    missing = sum(p["html"].count('class="link-missing"') for p in pages.values())
+
+    print(f"✓ {len(pages)} ページ（うち自動生成 {auto}）をビルドしました → docs/")
+    if unlisted or notes:
+        print(f"  unlisted {unlisted} / note {notes}")
     if missing:
         print(f"  ※ 行き先のない [[リンク]] が {missing} 件あります")
-    return posts, books
+    return pages
 
 
 if __name__ == "__main__":
