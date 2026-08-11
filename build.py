@@ -47,12 +47,15 @@ def _inline(text):
     text = re.sub(r"`([^`]+)`", _stash, text)
     text = html.escape(text, quote=False)
     # ![キャプション](images/x.jpg) / 幅を広げたいときは末尾に "wide"
-    text = re.sub(
-        r'!\[([^\]]*)\]\(([^)\s]+)(?:\s+"(\w+)")?\)',
-        lambda m: f'<img src="{m.group(2)}" alt="{m.group(1)}"'
-                  f'{" class=" + chr(34) + m.group(3) + chr(34) if m.group(3) else ""} loading="lazy">',
-        text,
-    )
+    # ファイル名に半角スペースが入っていても動くようにしてある
+    def _img(m):
+        src = m.group(2).strip()
+        if not src.startswith(("http://", "https://", "data:", "//")):
+            src = quote(src, safe="/._~()-")
+        cls = f' class="{m.group(3)}"' if m.group(3) else ""
+        return f'<img src="{src}" alt="{m.group(1)}"{cls} loading="lazy">'
+
+    text = re.sub(r'!\[([^\]]*)\]\(\s*([^)"]+?)\s*(?:"(\w+)")?\s*\)', _img, text)
     text = re.sub(r"(?<!\!)\[([^\[\]]+)\]\(([^)\s]+)\)", r'<a href="\2">\1</a>', text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", text)
@@ -393,8 +396,8 @@ def build_graph(pages):
         # 画像やリンクの相対パスを深さに合わせる
         if p["depth"]:
             body = re.sub(
-                r'(<img [^>]*src=")(?!https?://|\.\./|/)([^"]+)"',
-                lambda m: m.group(1) + asset(m.group(2), p["depth"]) + '"',
+                r'(<img [^>]*src=")(?!https?://|\.\./|/|data:)([^"]+)"',
+                lambda m: m.group(1) + "../" * p["depth"] + m.group(2) + '"',
                 body,
             )
         p["html"] = body
@@ -711,10 +714,13 @@ def build():
     write("network.html", render_network(pages))
     write("feed.xml", render_feed(pages))
 
+    ignore = shutil.ignore_patterns(".DS_Store", "Thumbs.db")
     if os.path.isdir(STATIC_DIR):
         for name in os.listdir(STATIC_DIR):
+            if name in (".DS_Store", "Thumbs.db"):
+                continue
             src, dst = os.path.join(STATIC_DIR, name), os.path.join(OUT_DIR, name)
-            shutil.copytree(src, dst) if os.path.isdir(src) else shutil.copy2(src, dst)
+            shutil.copytree(src, dst, ignore=ignore) if os.path.isdir(src) else shutil.copy2(src, dst)
     open(os.path.join(OUT_DIR, ".nojekyll"), "w").close()
 
     real = [p for p in pages.values() if not p["virtual"]]
