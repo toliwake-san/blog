@@ -196,13 +196,3 @@ BASE_URL = "https://toliwake-san.github.io/blog"
 | デザインが崩れた | `docs/` を消して `python3 build.py` |
 
 ---
-
-## 設計の出典
-
-情報設計は [garden.ooo](https://baku89.com/garden)（橋本麦さん）の[設計思想](https://baku89.com/garden/design-principles)と[情報設計](https://baku89.com/garden/information-architecture)を参考にしています。コードは共有されていないため実装は独自ですが、「階層性を信じない」「プレーンテキストが SSOT」「tag link と body link の区別」「ダダ漏れをアフォードする」という考え方をお借りしました。
-
-garden.ooo 本体との違い:
-
-- ブラウザ上の編集UIとクラウド同期はありません（編集は Obsidian などに任せる想定）
-- `protected`（認証付き公開）は未対応
-- `permanent` の既定値を `true` にしています（日記が主なので、既定で検索対象にするため）
