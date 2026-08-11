@@ -46,7 +46,13 @@ def _inline(text):
 
     text = re.sub(r"`([^`]+)`", _stash, text)
     text = html.escape(text, quote=False)
-    text = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)", r'<img src="\2" alt="\1" loading="lazy">', text)
+    # ![キャプション](images/x.jpg) / 幅を広げたいときは末尾に "wide"
+    text = re.sub(
+        r'!\[([^\]]*)\]\(([^)\s]+)(?:\s+"(\w+)")?\)',
+        lambda m: f'<img src="{m.group(2)}" alt="{m.group(1)}"'
+                  f'{" class=" + chr(34) + m.group(3) + chr(34) if m.group(3) else ""} loading="lazy">',
+        text,
+    )
     text = re.sub(r"(?<!\!)\[([^\[\]]+)\]\(([^)\s]+)\)", r'<a href="\2">\1</a>', text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", text)
@@ -56,6 +62,71 @@ def _inline(text):
         return "<code>" + html.escape(stash[int(m.group(1))], quote=False) + "</code>"
 
     return re.sub(r"\x00(\d+)\x00", _unstash, text)
+
+
+URL_ONLY_RE = re.compile(r"^<?(https?://[^\s<>\"]+)>?$")
+
+
+def _iframe(src, title, ratio="56.25%", allow="encrypted-media; picture-in-picture; clipboard-write"):
+    return (f'<div class="embed" style="padding-bottom:{ratio}">'
+            f'<iframe src="{html.escape(src)}" title="{html.escape(title)}" loading="lazy" '
+            f'frameborder="0" allow="{allow}" allowfullscreen referrerpolicy="strict-origin-when-cross-origin">'
+            f'</iframe></div>')
+
+
+def embed_html(url):
+    """行に単独で置かれたURLを埋め込みに変換する。対応外なら None。"""
+    m = (re.match(r"https?://(?:www\.)?youtube\.com/watch\?(?:[^#]*&)?v=([\w-]+)", url)
+         or re.match(r"https?://youtu\.be/([\w-]+)", url)
+         or re.match(r"https?://(?:www\.)?youtube\.com/(?:shorts|embed|live)/([\w-]+)", url))
+    if m:
+        t = re.search(r"[?&]t=(\d+)", url)
+        q = f"?start={t.group(1)}" if t else ""
+        # トラッキングを減らすため nocookie ドメインを使う
+        return _iframe(f"https://www.youtube-nocookie.com/embed/{m.group(1)}{q}", "YouTube")
+
+    m = re.match(r"https?://(?:www\.)?vimeo\.com/(\d+)", url)
+    if m:
+        return _iframe(f"https://player.vimeo.com/video/{m.group(1)}", "Vimeo")
+
+    m = re.match(r"https?://open\.spotify\.com/(?:intl-\w+/)?(track|album|playlist|episode|show)/(\w+)", url)
+    if m:
+        h = "152" if m.group(1) == "track" else "352"
+        return (f'<div class="embed fixed" style="height:{h}px">'
+                f'<iframe src="https://open.spotify.com/embed/{m.group(1)}/{m.group(2)}" '
+                f'title="Spotify" loading="lazy" frameborder="0" '
+                f'allow="encrypted-media; clipboard-write"></iframe></div>')
+
+    m = re.match(r"https?://(?:www\.)?(?:soundcloud\.com|snd\.sc)/\S+", url)
+    if m:
+        return (f'<div class="embed fixed" style="height:166px">'
+                f'<iframe src="https://w.soundcloud.com/player/?url={quote(url, safe="")}&color=%231a1a1a&'
+                f'hide_related=true&show_comments=false&show_user=true&show_reposts=false" '
+                f'title="SoundCloud" loading="lazy" frameborder="0"></iframe></div>')
+
+    m = re.match(r"https?://(?:www\.)?google\.com/maps/embed\?\S+", url)
+    if m:
+        return _iframe(url, "Google Maps", ratio="66%")
+    return None
+
+
+def link_card(url):
+    host = re.sub(r"^https?://(?:www\.)?", "", url).split("/")[0]
+    rest = url.split(host, 1)[-1].rstrip("/")
+    rest = (rest[:60] + "…") if len(rest) > 60 else rest
+    return (f'<a class="linkcard" href="{html.escape(url)}" rel="noopener">'
+            f'<span class="lc-host">{html.escape(host)}</span>'
+            f'<span class="lc-path">{html.escape(rest) or "/"}</span></a>')
+
+
+def figure_or_p(inner):
+    """段落が画像1枚だけなら figure にして alt をキャプションにする。"""
+    m = re.fullmatch(r'<img src="([^"]*)" alt="([^"]*)"([^>]*)>', inner.strip())
+    if not m:
+        return f"<p>{inner}</p>"
+    cap = f"<figcaption>{m.group(2)}</figcaption>" if m.group(2) else ""
+    cls = ' class="wide"' if 'class="wide"' in m.group(3) else ""
+    return f'<figure{cls}><img src="{m.group(1)}" alt="{m.group(2)}"{m.group(3)}>{cap}</figure>'
 
 
 def md_to_html(md):
@@ -108,13 +179,22 @@ def md_to_html(md):
                 i += 1
             out.append("<ol>" + "".join(f"<li>{t}</li>" for t in items) + "</ol>")
             continue
+        # 行に単独で置かれたURL → 埋め込み、またはリンクカード
+        m = URL_ONLY_RE.match(s)
+        if m:
+            out.append(embed_html(m.group(1)) or link_card(m.group(1)))
+            i += 1
+            continue
+
         buf = []
         while i < len(lines) and lines[i].strip() and not re.match(
             r"^\s*(#{1,4}\s|>|```|[-*+]\s|\d+\.\s)", lines[i]
-        ):
+        ) and not URL_ONLY_RE.match(lines[i].strip()):
             buf.append(lines[i].strip())
             i += 1
-        out.append("<p>" + _inline("<br>".join(buf)).replace("&lt;br&gt;", "<br>") + "</p>")
+        if not buf:
+            continue
+        out.append(figure_or_p(_inline("<br>".join(buf)).replace("&lt;br&gt;", "<br>")))
     return "\n".join(out)
 
 

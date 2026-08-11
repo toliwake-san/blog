@@ -306,6 +306,60 @@ a.tag:hover { color: var(--ink); }
 
 .post-body blockquote p:last-child { margin-bottom: 0; }
 .post-body img { max-width: 100%; height: auto; display: block; margin: 2.4em auto; }
+
+/* 図版 */
+.post-body figure { margin: 2.6em 0; }
+.post-body figure img { margin: 0; width: 100%; border-radius: 3px; }
+
+.post-body figcaption {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  line-height: 1.8;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  margin-top: 0.7rem;
+}
+
+/* 大きく出したい図版は ![キャプション](images/x.jpg "wide") */
+.post-body figure.wide {
+  width: min(46rem, 92vw);
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+
+/* 埋め込み */
+.embed {
+  position: relative;
+  width: 100%;
+  height: 0;
+  margin: 2.6em 0;
+  background: var(--paper-tint);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.embed.fixed { height: auto; padding-bottom: 0 !important; }
+.embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.embed.fixed iframe { position: static; }
+
+/* リンクカード */
+.linkcard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 2em 0;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  text-decoration: none;
+  font-family: var(--sans);
+  transition: border-color .2s;
+}
+
+.post-body .linkcard { border-bottom: 1px solid var(--rule); }
+.linkcard:hover { border-color: var(--ink-faint); }
+.lc-host { font-size: 0.78rem; color: var(--ink); letter-spacing: 0.03em; }
+.lc-path { font-size: 0.7rem; color: var(--ink-faint); word-break: break-all; line-height: 1.6; }
 .post-body hr { border: 0; height: 1px; background: var(--rule); margin: 3.5em auto; width: 4rem; }
 
 .post-body code {
