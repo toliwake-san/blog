@@ -13,6 +13,21 @@ fi
 MSG="${1:-$(date '+%Y-%m-%d') 更新}"
 
 git add -A
+
+# GitHub上で直接編集した内容があれば先に取り込む
+if git rev-parse @{u} >/dev/null 2>&1; then
+  git fetch -q origin
+  if [ -n "$(git log HEAD..@{u} 2>/dev/null)" ]; then
+    echo "GitHub側の変更を取り込みます…"
+    git stash -q -u 2>/dev/null || true
+    if ! git rebase -q @{u}; then
+      echo "※ 自動で統合できませんでした。競合しているファイルを直してから ./publish.sh をやり直してください。"
+      exit 1
+    fi
+    git stash pop -q 2>/dev/null || true
+    git add -A
+  fi
+fi
 if git diff --cached --quiet; then
   echo "新しい変更はありません。"
 else
