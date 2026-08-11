@@ -21,7 +21,7 @@ from datetime import datetime
 SITE_TITLE = "つきなみ文庫"
 SITE_DESCRIPTION = "読んだ本と、日々のこと。"
 AUTHOR = "asage"
-BASE_URL = ""  # 公開URL（例 https://ユーザー名.github.io/blog）。RSS用
+BASE_URL = "https://toliwake-san.github.io/blog"  # 公開URL。RSS用
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 POSTS_DIR = os.path.join(ROOT, "posts")

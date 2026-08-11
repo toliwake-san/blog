@@ -2,12 +2,12 @@
 <rss version="2.0">
 <channel>
   <title>つきなみ文庫</title>
-  <link>index.html</link>
+  <link>https://toliwake-san.github.io/blog</link>
   <description>読んだ本と、日々のこと。</description>
   <language>ja</language>
   <item>
     <title>はじめに</title>
-    <link>posts/hajimeni.html</link>
+    <link>https://toliwake-san.github.io/blog/posts/hajimeni.html</link>
     <guid isPermaLink="false">hajimeni</guid>
     <pubDate>Tue, 11 Aug 2026 00:00:00 +0900</pubDate>
     <description>（ここに最初の一本を書いてください。三行でもかまいません）</description>
