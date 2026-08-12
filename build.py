@@ -15,6 +15,7 @@
 
 import html
 import json
+import math
 import os
 import re
 import shutil
@@ -34,6 +35,25 @@ STATIC_DIR = os.path.join(ROOT, "static")
 OUT_DIR = os.path.join(ROOT, "docs")
 
 LAYOUTS = ("page", "grid", "table", "list")
+
+# ---- 本棚ビューの設定 ----------------------------------------------
+# 判型と背の高さ(px)。frontmatter の size: で選ぶ。既定は文庫
+BOOK_SIZES = {
+    "文庫": 150,
+    "新書": 175,
+    "単行本": 195,
+    "ハードカバー": 215,
+    "大型本": 245,
+}
+DEFAULT_SIZE = "文庫"
+SHELF_ROW = max(BOOK_SIZES.values()) + 18   # 棚1段の高さ
+SPINE_MIN, SPINE_MAX = 13, 58               # 背の厚み(px)の下限と上限
+
+
+def spine_width(chars):
+    """厚みは文字数の対数で決める。長文でも際限なく太らないように。"""
+    w = SPINE_MIN + 27 * math.log10(1 + chars / 110)
+    return int(round(min(max(w, SPINE_MIN), SPINE_MAX)))
 
 
 # ---------------------------------------------------------------- Markdown
@@ -291,6 +311,9 @@ def new_page(path, meta=None, body_md="", virtual=False, mtime=None):
         "visibility": visibility,
         "permanent": permanent,
         "cover": meta.get("cover", ""),
+        "size": meta.get("size", "").strip() or DEFAULT_SIZE,
+        "spine": meta.get("spine", "").strip(),   # 背表紙用の短いタイトル
+        "face": truthy(meta.get("face"), default=False),  # 面陳（表紙を見せる）
         "nav": meta.get("nav", ""),
         "on_home": truthy(meta.get("home"), default=True),
         "excerpt_fm": meta.get("excerpt", ""),
@@ -393,6 +416,9 @@ def build_graph(pages):
             return f'<a class="wikilink" href="{url_of(target, _p["depth"])}">{html.escape(label)}</a>'
 
         body = outside_code(p["raw_html"], lambda t: LINK_RE.sub(repl, t))
+        # 面陳の表紙に使う。深さ調整の前（サイト直下からの相対）で取っておく
+        m0 = re.search(r'<img [^>]*src="([^"]+)"', body)
+        p["first_image"] = m0.group(1) if m0 else ""
         # 画像やリンクの相対パスを深さに合わせる
         if p["depth"]:
             body = re.sub(
@@ -413,7 +439,7 @@ def build_graph(pages):
 
 
 # ---------------------------------------------------------------- テンプレート
-def layout_html(page, pages, body, extra_body=""):
+def layout_html(page, pages, body, extra_body="", extra_head=""):
     d = page["depth"] if page else 0
     up = "../" * d
     site = html.escape(SITE_TITLE)
@@ -442,7 +468,7 @@ def layout_html(page, pages, body, extra_body=""):
 <meta property="og:description" content="{desc}">
 <meta property="og:type" content="{'website' if is_home else 'article'}">
 <link rel="alternate" type="application/rss+xml" title="{site}" href="{up}feed.xml">
-<link rel="stylesheet" href="{up}style.css">
+<link rel="stylesheet" href="{up}style.css">{extra_head}
 </head>
 <body>
 <header class="site-header">
@@ -489,6 +515,44 @@ def card_html(p, depth):
 </article>"""
 
 
+def book_html(p, depth):
+    """本棚に並ぶ1冊。背表紙、または面陳（表紙を見せる）。"""
+    h = BOOK_SIZES.get(p["size"], BOOK_SIZES[DEFAULT_SIZE])
+    tags = html.escape(" ".join(t["title"] for t in p["tag_links"]))
+    href = url_of(p, depth)
+    title = html.escape(p["spine"] or p["title"])
+
+    if p["face"]:
+        w = int(round(h * 0.68))
+        # cover: は素のパス、first_image は既にエスケープ済みなので扱いを分ける
+        if p["cover"]:
+            src = p["cover"] if p["cover"].startswith("http") else asset(p["cover"], depth)
+        elif p["first_image"]:
+            src = p["first_image"] if p["first_image"].startswith("http") \
+                else "../" * depth + p["first_image"]
+        else:
+            src = ""
+        inner = (f'<span class="face-img"><img src="{src}" alt="" loading="lazy"></span>'
+                 if src else '<span class="face-img blank"></span>')
+        date = f'<span class="face-date">{p["short_date"]}</span>' if p["has_date"] else ""
+        return (f'<a class="book face" data-tags="{tags}" href="{href}" style="--w:{w}px;--h:{h}px">'
+                f'<span class="vol">{inner}<span class="face-cap">'
+                f'<span class="face-title">{title}</span>{date}</span></span></a>')
+
+    w = spine_width(p["length"])
+    return (f'<a class="book" data-tags="{tags}" href="{href}" style="--w:{w}px;--h:{h}px">'
+            f'<span class="vol"><span class="spine-title">{title}</span></span></a>')
+
+
+def spine_overflow(p):
+    """背表紙にタイトルが入りきらなそうなら True。ビルド時の注意用。"""
+    if p["face"]:
+        return False
+    h = BOOK_SIZES.get(p["size"], BOOK_SIZES[DEFAULT_SIZE])
+    cols = max(1, (spine_width(p["length"]) - 9) // 13)
+    return len(p["spine"] or p["title"]) > cols * int((h - 22) / 12)
+
+
 def listed(items):
     return [p for p in items if p["visibility"] == "public"]
 
@@ -508,21 +572,60 @@ def render_home(pages):
     for t, c in sorted(counts.items(), key=lambda kv: -kv[1]):
         pills.append(f'<button class="pill" data-tag="{html.escape(t)}">{html.escape(t)}<sup>{c}</sup></button>')
 
+    toggle = """<div class="viewtoggle">
+  <button data-view="grid" aria-label="ブロックで見る" title="ブロック">
+    <svg viewBox="0 0 22 22" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4">
+      <rect x="2.5" y="2.5" width="7" height="8.5" rx="1"/><rect x="12.5" y="2.5" width="7" height="5.5" rx="1"/>
+      <rect x="2.5" y="14" width="7" height="5.5" rx="1"/><rect x="12.5" y="11" width="7" height="8.5" rx="1"/>
+    </svg>
+  </button>
+  <button data-view="shelf" aria-label="本棚で見る" title="本棚">
+    <svg viewBox="0 0 22 22" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4">
+      <path d="M2 18.6h18" stroke-width="1.6"/>
+      <rect x="3" y="6" width="3" height="12.6" rx=".6"/><rect x="7.2" y="4" width="4" height="14.6" rx=".6"/>
+      <rect x="12.4" y="7.5" width="2.6" height="11.1" rx=".6"/>
+      <path d="M16.4 18.6 17.9 8.2l2.6.5-1.4 9.9z" stroke-linejoin="round"/>
+    </svg>
+  </button>
+</div>"""
+
     js = """<script>
-document.querySelectorAll('.pill').forEach(function (btn) {
-  btn.addEventListener('click', function () {
-    var tag = btn.dataset.tag;
-    document.querySelectorAll('.pill').forEach(function (b) { b.classList.toggle('is-on', b === btn); });
-    document.querySelectorAll('.card').forEach(function (c) {
-      var on = tag === '*' || (' ' + c.dataset.tags + ' ').indexOf(' ' + tag + ' ') >= 0;
-      c.style.display = on ? '' : 'none';
+(function () {
+  var KEY = 'tsukinami-view';
+  function apply(v) {
+    document.documentElement.dataset.view = v;
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+    document.querySelectorAll('.viewtoggle button').forEach(function (b) {
+      b.classList.toggle('is-on', b.dataset.view === v);
+    });
+  }
+  document.querySelectorAll('.viewtoggle button').forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.dataset.view); });
+  });
+  apply(document.documentElement.dataset.view || 'shelf');
+
+  document.querySelectorAll('.pill').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var tag = btn.dataset.tag;
+      document.querySelectorAll('.pill').forEach(function (b) { b.classList.toggle('is-on', b === btn); });
+      document.querySelectorAll('.card, .book').forEach(function (c) {
+        var on = tag === '*' || (' ' + c.dataset.tags + ' ').indexOf(' ' + tag + ' ') >= 0;
+        c.style.display = on ? '' : 'none';
+      });
     });
   });
-});
+})();
 </script>"""
-    body = (f'<div class="pills">{"".join(pills)}</div>'
+    # 表示切替のちらつきを防ぐため、描画前に前回の選択を読む
+    head = (f"\n<style>:root{{--shelf-row-set:{SHELF_ROW}px}}</style>"
+            "\n<script>(function(){try{document.documentElement.dataset.view="
+            "localStorage.getItem('tsukinami-view')||'shelf';}catch(e){"
+            "document.documentElement.dataset.view='shelf';}})();</script>")
+
+    body = (f'<div class="listbar"><div class="pills">{"".join(pills)}</div>{toggle}</div>'
+            f'<div class="shelf">{"".join(book_html(p, 0) for p in items)}</div>'
             f'<div class="grid">{"".join(card_html(p, 0) for p in items)}</div>')
-    return layout_html(None, pages, body, extra_body=js)
+    return layout_html(None, pages, body, extra_body=js, extra_head=head)
 
 
 def render_page(p, pages):
@@ -728,12 +831,18 @@ def build():
     unlisted = sum(1 for p in pages.values() if p["visibility"] == "unlisted")
     notes = sum(1 for p in pages.values() if not p["permanent"])
     missing = sum(p["html"].count('class="link-missing"') for p in pages.values())
+    over = [p["title"] for p in pages.values()
+            if p["visibility"] == "public" and p["on_home"] and spine_overflow(p)]
 
     print(f"✓ {len(pages)} ページ（うち自動生成 {auto}）をビルドしました → docs/")
     if unlisted or notes:
         print(f"  unlisted {unlisted} / note {notes}")
     if missing:
         print(f"  ※ 行き先のない [[リンク]] が {missing} 件あります")
+    if over:
+        print("  ※ 背表紙に入りきらないかもしれないタイトル（spine: で短い名前を指定できます）:")
+        for t in over[:6]:
+            print(f"     - {t}")
     return pages
 
 
