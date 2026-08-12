@@ -13,6 +13,7 @@
   - ページの性格は layout（page / grid / table / list）で決まる
 """
 
+import hashlib
 import html
 import json
 import math
@@ -48,6 +49,18 @@ BOOK_SIZES = {
 DEFAULT_SIZE = "文庫"
 SHELF_ROW = max(BOOK_SIZES.values()) + 18   # 棚1段の高さ
 SPINE_MIN, SPINE_MAX = 13, 58               # 背の厚み(px)の下限と上限
+
+
+def css_version():
+    """CSSの中身からバージョン文字列を作る。ブラウザの古いキャッシュ対策。"""
+    path = os.path.join(STATIC_DIR, "style.css")
+    if not os.path.exists(path):
+        return "0"
+    with open(path, "rb") as f:
+        return hashlib.md5(f.read()).hexdigest()[:8]
+
+
+CSS_V = ""
 
 
 def spine_width(chars):
@@ -468,7 +481,7 @@ def layout_html(page, pages, body, extra_body="", extra_head=""):
 <meta property="og:description" content="{desc}">
 <meta property="og:type" content="{'website' if is_home else 'article'}">
 <link rel="alternate" type="application/rss+xml" title="{site}" href="{up}feed.xml">
-<link rel="stylesheet" href="{up}style.css">{extra_head}
+<link rel="stylesheet" href="{up}style.css?v={CSS_V}">{extra_head}
 </head>
 <body>
 <header class="site-header">
@@ -623,8 +636,8 @@ def render_home(pages):
             "document.documentElement.dataset.view='shelf';}})();</script>")
 
     body = (f'<div class="listbar"><div class="pills">{"".join(pills)}</div>{toggle}</div>'
-            f'<div class="shelf">{"".join(book_html(p, 0) for p in items)}</div>'
-            f'<div class="grid">{"".join(card_html(p, 0) for p in items)}</div>')
+            f'<div class="shelf view-shelf">{"".join(book_html(p, 0) for p in items)}</div>'
+            f'<div class="grid view-grid">{"".join(card_html(p, 0) for p in items)}</div>')
     return layout_html(None, pages, body, extra_body=js, extra_head=head)
 
 
@@ -805,6 +818,8 @@ def write(rel, text):
 
 
 def build():
+    global CSS_V
+    CSS_V = css_version()
     pages = build_graph(load_pages())
 
     if os.path.isdir(OUT_DIR):

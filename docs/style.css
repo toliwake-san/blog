@@ -120,11 +120,11 @@ main { max-width: var(--wide); margin: 0 auto; padding: 0 1.5rem; }
 .viewtoggle button:hover { color: var(--ink-soft); }
 .viewtoggle button.is-on { color: var(--ink); background: var(--paper-tint); }
 
-/* 表示の切り替え。既定は本棚 */
-.shelf { display: block; }
-.grid { display: block; }
-html[data-view="grid"] .shelf { display: none; }
-html[data-view="shelf"] .grid { display: none; }
+/* 表示の切り替え。JSが動かない環境でも本棚が出るように、既定を本棚にしておく */
+.view-shelf { display: flex; }
+.view-grid { display: none; }
+html[data-view="grid"] .view-shelf { display: none; }
+html[data-view="grid"] .view-grid { display: block; }
 
 /* ---------------------------------------------- 絞り込みピル */
 .pills {
