@@ -40,15 +40,15 @@ LAYOUTS = ("page", "grid", "table", "list")
 # ---- 本棚ビューの設定 ----------------------------------------------
 # 判型と背の高さ(px)。frontmatter の size: で選ぶ。既定は文庫
 BOOK_SIZES = {
-    "文庫": 150,
-    "新書": 175,
-    "単行本": 195,
-    "ハードカバー": 215,
-    "大型本": 245,
+    "文庫": 250,
+    "新書": 292,
+    "単行本": 330,
+    "ハードカバー": 372,
+    "大型本": 430,
 }
 DEFAULT_SIZE = "文庫"
-SHELF_ROW = max(BOOK_SIZES.values()) + 18   # 棚1段の高さ
-SPINE_MIN, SPINE_MAX = 13, 58               # 背の厚み(px)の下限と上限
+SHELF_ROW = max(BOOK_SIZES.values()) + 26   # 棚1段の高さ
+SPINE_MIN, SPINE_MAX = 20, 72               # 背の厚み(px)の下限と上限
 
 
 def css_version():
@@ -65,7 +65,7 @@ CSS_V = ""
 
 def spine_width(chars):
     """厚みは文字数の対数で決める。長文でも際限なく太らないように。"""
-    w = SPINE_MIN + 27 * math.log10(1 + chars / 110)
+    w = SPINE_MIN + 32 * math.log10(1 + chars / 110)
     return int(round(min(max(w, SPINE_MIN), SPINE_MAX)))
 
 
@@ -562,8 +562,8 @@ def spine_overflow(p):
     if p["face"]:
         return False
     h = BOOK_SIZES.get(p["size"], BOOK_SIZES[DEFAULT_SIZE])
-    cols = max(1, (spine_width(p["length"]) - 9) // 13)
-    return len(p["spine"] or p["title"]) > cols * int((h - 22) / 12)
+    cols = max(1, (spine_width(p["length"]) - 12) // 16)
+    return len(p["spine"] or p["title"]) > cols * int((h - 30) / 15)
 
 
 def listed(items):

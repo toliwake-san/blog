@@ -281,12 +281,11 @@ a.tag:hover { color: var(--ink); }
   width: 100%;
   height: var(--h);
   border: 1px solid var(--rule);
-  border-bottom: 0;
-  border-radius: 2px 2px 0 0;
+  border-radius: 2px;
   background: var(--paper);
   display: flex;
   justify-content: center;
-  padding: 0.7rem 0 0.5rem;
+  padding: 0.9rem 0 0.7rem;
   overflow: hidden;
   transition: transform .18s ease, border-color .18s;
 }
@@ -298,9 +297,9 @@ a.tag:hover { color: var(--ink); }
 .spine-title {
   writing-mode: vertical-rl;
   font-family: var(--serif);
-  font-size: 0.68rem;
-  line-height: 1.45;
-  letter-spacing: 0.06em;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
   color: var(--ink);
   max-height: 100%;
 }
@@ -319,7 +318,7 @@ a.tag:hover { color: var(--ink); }
 
 .face-cap {
   display: block;
-  padding: 0.5rem 0.55rem 0.6rem;
+  padding: 0.7rem 0.8rem 0.8rem;
   border-top: 1px solid var(--rule);
   background: var(--paper);
 }
@@ -327,24 +326,28 @@ a.tag:hover { color: var(--ink); }
 .face-title {
   display: block;
   font-family: var(--serif);
-  font-size: 0.72rem;
-  line-height: 1.45;
+  font-size: 0.9rem;
+  line-height: 1.5;
   color: var(--ink);
 }
 
 .face-date {
   display: block;
-  font-size: 0.58rem;
+  font-size: 0.65rem;
   letter-spacing: 0.08em;
   color: var(--ink-faint);
-  margin-top: 0.2rem;
+  margin-top: 0.3rem;
   font-variant-numeric: tabular-nums;
 }
 
+@media (max-width: 900px) {
+  .shelf { --shelf-row: 330px; }
+  .vol { height: min(var(--h), calc(var(--shelf-row) - 26px)); }
+}
+
 @media (max-width: 600px) {
-  .shelf { --shelf-row: 200px; }
-  .vol { height: min(var(--h), calc(var(--shelf-row) - 16px)); }
-  .spine-title { font-size: 0.64rem; }
+  .shelf { --shelf-row: 260px; }
+  .spine-title { font-size: 0.76rem; }
   .listbar { flex-direction: column; gap: 0.9rem; }
 }
 
