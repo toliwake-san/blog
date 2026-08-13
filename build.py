@@ -21,8 +21,9 @@ import os
 import re
 import shutil
 import sys
+import unicodedata
 from datetime import datetime
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 # ---------------------------------------------------------------- 設定
 SITE_TITLE = "つきなみ文庫"
@@ -61,6 +62,46 @@ def css_version():
 
 
 CSS_V = ""
+STATIC_INDEX = {}   # 小文字パス -> 実際のパス
+MISSING_ASSETS = []
+
+
+def akey(s):
+    """照合用のキー。macOS はファイル名を NFD で持つので NFC に揃えて小文字化する。"""
+    return unicodedata.normalize("NFC", s).lower()
+
+
+def load_static_index():
+    """static/ の中身を控えておく。参照とファイル名の食い違いを直すのに使う。"""
+    STATIC_INDEX.clear()
+    if not os.path.isdir(STATIC_DIR):
+        return
+    for dirpath, _, filenames in os.walk(STATIC_DIR):
+        for name in filenames:
+            if name in (".DS_Store", "Thumbs.db"):
+                continue
+            rel = os.path.relpath(os.path.join(dirpath, name), STATIC_DIR).replace(os.sep, "/")
+            STATIC_INDEX[akey(rel)] = rel
+
+
+def resolve_asset(path):
+    """
+    画像などの参照を、実在するファイル名に合わせる。手元では見えるのに
+    公開すると404になる事故を防ぐためのもの。吸収するのは2種類の食い違い。
+
+      1. 拡張子の大文字小文字（.JPG と .jpg）
+         macOS は区別しないが GitHub Pages(Linux) は区別する
+      2. 濁点などのUnicode表現（NFD と NFC）
+         Finder 由来のファイル名と、エディタで打った文字はここがずれる
+    """
+    if not path or path.startswith(("http://", "https://", "//", "data:")):
+        return path
+    clean = unquote(path).lstrip("/")
+    actual = STATIC_INDEX.get(akey(clean))
+    if actual:
+        return actual
+    MISSING_ASSETS.append(clean)
+    return clean
 
 
 def spine_width(chars):
@@ -82,13 +123,16 @@ def _inline(text):
     # ![キャプション](images/x.jpg) / 幅を広げたいときは末尾に "wide"
     # ファイル名に半角スペースが入っていても動くようにしてある
     def _img(m):
-        src = m.group(2).strip()
+        src, opt = m.group(2).strip(), (m.group(3) or "").strip('"').strip()
+        # 引用符を忘れて (images/x.jpg wide) と書かれても拾う
+        if opt and opt != "wide":      # 想定外の指定はパスの一部として扱う
+            src, opt = f"{src} {opt}", ""
         if not src.startswith(("http://", "https://", "data:", "//")):
-            src = quote(src, safe="/._~()-")
-        cls = f' class="{m.group(3)}"' if m.group(3) else ""
+            src = quote(resolve_asset(src), safe="/._~()-")
+        cls = ' class="wide"' if opt else ""
         return f'<img src="{src}" alt="{m.group(1)}"{cls} loading="lazy">'
 
-    text = re.sub(r'!\[([^\]]*)\]\(\s*([^)"]+?)\s*(?:"(\w+)")?\s*\)', _img, text)
+    text = re.sub(r'!\[([^\]]*)\]\(\s*([^)"]+?)(?:\s+("?\w+"?))?\s*\)', _img, text)
     text = re.sub(r"(?<!\!)\[([^\[\]]+)\]\(([^)\s]+)\)", r'<a href="\2">\1</a>', text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", text)
@@ -280,7 +324,7 @@ def url_of(page, from_depth=0):
 def asset(path, from_depth=0):
     if path.startswith(("http://", "https://", "//")):
         return path
-    return "../" * from_depth + quote(path.lstrip("/"), safe="/")
+    return "../" * from_depth + quote(resolve_asset(path), safe="/._~()-")
 
 
 # ---------------------------------------------------------------- 読み込み
@@ -820,6 +864,8 @@ def write(rel, text):
 def build():
     global CSS_V
     CSS_V = css_version()
+    load_static_index()
+    MISSING_ASSETS.clear()
     pages = build_graph(load_pages())
 
     if os.path.isdir(OUT_DIR):
@@ -858,6 +904,10 @@ def build():
         print("  ※ 背表紙に入りきらないかもしれないタイトル（spine: で短い名前を指定できます）:")
         for t in over[:6]:
             print(f"     - {t}")
+    if MISSING_ASSETS:
+        print("  ※ static/ に見つからない画像があります。ファイル名を確認してください:")
+        for a in sorted(set(MISSING_ASSETS))[:8]:
+            print(f"     - {a}")
     return pages
 
 
