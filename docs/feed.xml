@@ -6,11 +6,25 @@
   <description>読んだ本と、日々のこと。</description>
   <language>ja</language>
   <item>
+    <title>Dreamcore</title>
+    <link>https://toliwake-san.github.io/blog/Dreamcore.html</link>
+    <guid isPermaLink="false">dreamcore</guid>
+    <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
+    <description></description>
+  </item>
+  <item>
     <title>マルセル・プルースト『失われた時を求めて』8</title>
     <link>https://toliwake-san.github.io/blog/%E3%83%9E%E3%83%AB%E3%82%BB%E3%83%AB%E3%83%BB%E3%83%97%E3%83%AB%E3%83%BC%E3%82%B9%E3%83%88%E3%80%8E%E5%A4%B1%E3%82%8F%E3%82%8C%E3%81%9F%E6%99%82%E3%82%92%E6%B1%82%E3%82%81%E3%81%A6%E3%80%8F8.html</link>
     <guid isPermaLink="false">マルセル・プルースト『失われた時を求めて』8</guid>
     <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
     <description>マルセル・プルースト『失われた時を求めて』8』</description>
+  </item>
+  <item>
+    <title>音MAD</title>
+    <link>https://toliwake-san.github.io/blog/%E9%9F%B3MAD.html</link>
+    <guid isPermaLink="false">音mad</guid>
+    <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
+    <description></description>
   </item>
   <item>
     <title>島田潤一郎『長い読書』</title>
