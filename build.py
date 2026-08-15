@@ -621,14 +621,14 @@ def render_home(pages):
 
     toggle = """<div class="viewtoggle">
   <button data-view="grid" aria-label="ブロックで見る" title="ブロック">
-    <svg viewBox="0 0 22 22" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4">
+    <svg viewBox="0 0 22 22" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.3">
       <rect x="2.5" y="2.5" width="7" height="8.5" rx="1"/><rect x="12.5" y="2.5" width="7" height="5.5" rx="1"/>
       <rect x="2.5" y="14" width="7" height="5.5" rx="1"/><rect x="12.5" y="11" width="7" height="8.5" rx="1"/>
     </svg>
   </button>
   <button data-view="shelf" aria-label="本棚で見る" title="本棚">
-    <svg viewBox="0 0 22 22" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4">
-      <path d="M2 18.6h18" stroke-width="1.6"/>
+    <svg viewBox="0 0 22 22" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.3">
+      <path d="M2 18.6h18" stroke-width="1.5"/>
       <rect x="3" y="6" width="3" height="12.6" rx=".6"/><rect x="7.2" y="4" width="4" height="14.6" rx=".6"/>
       <rect x="12.4" y="7.5" width="2.6" height="11.1" rx=".6"/>
       <path d="M16.4 18.6 17.9 8.2l2.6.5-1.4 9.9z" stroke-linejoin="round"/>
@@ -669,7 +669,7 @@ def render_home(pages):
             "localStorage.getItem('tsukinami-view')||'shelf';}catch(e){"
             "document.documentElement.dataset.view='shelf';}})();</script>")
 
-    body = (f'<div class="listbar"><div class="pills">{"".join(pills)}</div>{toggle}</div>'
+    body = (f'<div class="pills">{"".join(pills)}</div>{toggle}'
             f'<div class="shelf view-shelf">{"".join(book_html(p, 0) for p in items)}</div>'
             f'<div class="grid view-grid">{"".join(card_html(p, 0) for p in items)}</div>')
     return layout_html(None, pages, body, extra_body=js, extra_head=head)
