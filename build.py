@@ -371,7 +371,6 @@ def new_page(path, meta=None, body_md="", virtual=False, mtime=None):
         "size": meta.get("size", "").strip() or DEFAULT_SIZE,
         "spine": meta.get("spine", "").strip(),   # 背表紙用の短いタイトル
         "face": truthy(meta.get("face"), default=False),  # 面陳（表紙を見せる）
-        "nav": meta.get("nav", ""),
         "on_home": truthy(meta.get("home"), default=True),
         "excerpt_fm": meta.get("excerpt", ""),
         "source": body_md,
@@ -506,14 +505,6 @@ def layout_html(page, pages, body, extra_body="", extra_head=""):
     desc = html.escape(SITE_DESCRIPTION if is_home else (page["excerpt"] or SITE_DESCRIPTION))
     robots = "" if is_home or page["permanent"] else '\n<meta name="robots" content="noindex, nofollow">'
 
-    nav_items = sorted(
-        [p for p in pages.values() if str(p["nav"]).strip()],
-        key=lambda p: (str(p["nav"]), p["title"]),
-    )
-    nav = f'<a href="{up}index.html">記事</a>' + "".join(
-        f'<a href="{url_of(p, d)}">{html.escape(p["title"])}</a>' for p in nav_items
-    )
-
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -531,7 +522,6 @@ def layout_html(page, pages, body, extra_body="", extra_head=""):
 <header class="site-header">
   <a class="site-title" href="{up}index.html">{site}</a>
   <nav class="site-nav">
-    {nav}<a href="{up}feed.xml">RSS</a>
     <a class="icon-link" href="{up}network.html" aria-label="つながり">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3">
         <circle cx="6" cy="17" r="2.4"/><circle cx="18" cy="17" r="2.4"/><circle cx="12" cy="6" r="2.4"/>

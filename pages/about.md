@@ -1,7 +1,7 @@
 ---
 title: について
 layout: page
-nav: 3
+
 home: false
 ---
 
