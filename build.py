@@ -422,19 +422,43 @@ def resolve(pages, by_title, name):
     return pages.get(to_slug(to_uri(name))) or by_title.get(name)
 
 
+def safe_path(name):
+    """ページ名からファイル名に使えない文字を落とす。"""
+    return re.sub(r'[/\\:*?"<>|]', "-", name).strip() or "無題"
+
+
 def build_graph(pages):
-    """tag link を辿ってページを自動生成し、リンクとバックリンクを張る。"""
-    # tags で参照されているのに実体がないページを作る
+    """参照されているのに実体がないページを作り、リンクとバックリンクを張る。"""
+
+    def exists(name):
+        return to_slug(to_uri(name)) in pages or any(
+            q["title"] == name for q in pages.values()
+        )
+
+    def create(name, meta):
+        v = new_page(safe_path(name), dict(meta, title=name), virtual=True)
+        if v["slug"] in pages:
+            return None
+        pages[v["slug"]] = v
+        return v
+
+    # tags で参照されているページ（分類なので一覧ページになる）
     added = True
     while added:
         added = False
         for p in list(pages.values()):
             for t in p["tag_names"]:
-                s = to_slug(to_uri(t))
-                if s not in pages:
-                    v = new_page(t, {"layout": "grid", "home": "false"}, virtual=True)
-                    pages[v["slug"]] = v
+                if not exists(t) and create(t, {"layout": "grid", "home": "false"}):
                     added = True
+
+    # 本文の [[ ]] で参照されているページ（実体なので文庫サイズの1冊になる）
+    for p in list(pages.values()):
+        if not p["raw_html"]:
+            continue
+        for m in LINK_RE.finditer(CODE_RE.sub("", p["raw_html"])):
+            name = m.group(1).strip()
+            if name and not exists(name):
+                create(name, {"layout": "page", "size": "文庫", "face": "false"})
 
     by_title = {}
     for p in pages.values():
