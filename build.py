@@ -61,9 +61,14 @@ def css_version():
         return hashlib.md5(f.read()).hexdigest()[:8]
 
 
+# 参照されたページを pages/ に .md として書き出すか
+# False にすると、ファイルは作らずサイト上にだけ生成する
+AUTO_CREATE_FILES = True
+
 CSS_V = ""
 STATIC_INDEX = {}   # 小文字パス -> 実際のパス
 MISSING_ASSETS = []
+CREATED_FILES = []
 
 
 def akey(s):
@@ -427,6 +432,20 @@ def safe_path(name):
     return re.sub(r'[/\\:*?"<>|]', "-", name).strip() or "無題"
 
 
+def write_stub(path, title, meta):
+    """自動生成されたページを pages/ に .md として置く。既にあれば何もしない。"""
+    if not AUTO_CREATE_FILES:
+        return
+    dest = os.path.join(PAGES_DIR, path + ".md")
+    if os.path.exists(dest):
+        return
+    os.makedirs(os.path.dirname(dest) or PAGES_DIR, exist_ok=True)
+    lines = [f"title: {title}"] + [f"{k}: {v}" for k, v in meta.items() if k != "title"]
+    with open(dest, "w", encoding="utf-8") as f:
+        f.write("---\n" + "\n".join(lines) + "\n---\n\n")
+    CREATED_FILES.append(os.path.relpath(dest, ROOT))
+
+
 def build_graph(pages):
     """参照されているのに実体がないページを作り、リンクとバックリンクを張る。"""
 
@@ -436,10 +455,12 @@ def build_graph(pages):
         )
 
     def create(name, meta):
-        v = new_page(safe_path(name), dict(meta, title=name), virtual=True)
+        path = safe_path(name)
+        v = new_page(path, dict(meta, title=name), virtual=True)
         if v["slug"] in pages:
             return None
         pages[v["slug"]] = v
+        write_stub(path, name, meta)
         return v
 
     # tags で参照されているページ（分類なので一覧ページになる）
@@ -448,7 +469,9 @@ def build_graph(pages):
         added = False
         for p in list(pages.values()):
             for t in p["tag_names"]:
-                if not exists(t) and create(t, {"layout": "grid", "home": "false"}):
+                if not exists(t) and create(t, {
+                    "layout": "grid", "visibility": "public", "home": "false",
+                }):
                     added = True
 
     # 本文の [[ ]] で参照されているページ（実体なので文庫サイズの1冊になる）
@@ -458,7 +481,11 @@ def build_graph(pages):
         for m in LINK_RE.finditer(CODE_RE.sub("", p["raw_html"])):
             name = m.group(1).strip()
             if name and not exists(name):
-                create(name, {"layout": "page", "size": "文庫", "face": "false"})
+                create(name, {
+                    "date": "", "tags": "", "layout": "page",
+                    "visibility": "public", "permanent": "true",
+                    "size": "文庫", "face": "false",
+                })
 
     by_title = {}
     for p in pages.values():
@@ -880,6 +907,7 @@ def build():
     CSS_V = css_version()
     load_static_index()
     MISSING_ASSETS.clear()
+    CREATED_FILES.clear()
     pages = build_graph(load_pages())
 
     if os.path.isdir(OUT_DIR):
@@ -910,6 +938,12 @@ def build():
             if p["visibility"] == "public" and p["on_home"] and spine_overflow(p)]
 
     print(f"✓ {len(pages)} ページ（うち自動生成 {auto}）をビルドしました → docs/")
+    if CREATED_FILES:
+        print(f"  + 参照されていたページを {len(CREATED_FILES)} 件つくりました:")
+        for c in CREATED_FILES[:8]:
+            print(f"     {c}")
+        if len(CREATED_FILES) > 8:
+            print(f"     ほか {len(CREATED_FILES) - 8} 件")
     if unlisted or notes:
         print(f"  unlisted {unlisted} / note {notes}")
     if missing:
