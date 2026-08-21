@@ -6,6 +6,13 @@
   <description>読んだ本と、日々のこと。</description>
   <language>ja</language>
   <item>
+    <title>阿久津隆『本の読める場所を求めて』</title>
+    <link>https://toliwake-san.github.io/blog/%E9%98%BF%E4%B9%85%E6%B4%A5%E9%9A%86%E3%80%8E%E6%9C%AC%E3%81%AE%E8%AA%AD%E3%82%81%E3%82%8B%E5%A0%B4%E6%89%80%E3%82%92%E6%B1%82%E3%82%81%E3%81%A6%E3%80%8F.html</link>
+    <guid isPermaLink="false">阿久津隆『本の読める場所を求めて』</guid>
+    <pubDate>Fri, 21 Aug 2026 00:00:00 +0900</pubDate>
+    <description>阿久津隆『本の読める場所を求めて』</description>
+  </item>
+  <item>
     <title>『路上観察学入門』</title>
     <link>https://toliwake-san.github.io/blog/%E3%80%8E%E8%B7%AF%E4%B8%8A%E8%A6%B3%E5%AF%9F%E5%AD%A6%E5%85%A5%E9%96%80%E3%80%8F.html</link>
     <guid isPermaLink="false">『路上観察学入門』</guid>
@@ -137,13 +144,6 @@
     <guid isPermaLink="false">博報堂_「広告」414号</guid>
     <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
     <description>博報堂 「広告」414号</description>
-  </item>
-  <item>
-    <title>平倉圭『かたちは思考する　芸術制作の分析』</title>
-    <link>https://toliwake-san.github.io/blog/%E5%B9%B3%E5%80%89%E5%9C%AD%E3%80%8E%E3%81%8B%E3%81%9F%E3%81%A1%E3%81%AF%E6%80%9D%E8%80%83%E3%81%99%E3%82%8B%E3%80%8F.html</link>
-    <guid isPermaLink="false">平倉圭『かたちは思考する』</guid>
-    <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
-    <description>平倉圭『かたちは思考する』</description>
   </item>
 </channel>
 </rss>
