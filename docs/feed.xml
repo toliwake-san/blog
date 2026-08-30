@@ -6,6 +6,13 @@
   <description>読んだ本と、日々のこと。</description>
   <language>ja</language>
   <item>
+    <title>ジェニー・ロマニウク『ブランディングの科学4』</title>
+    <link>https://toliwake-san.github.io/blog/%E3%82%B8%E3%82%A7%E3%83%8B%E3%83%BC%E3%83%BB%E3%83%AD%E3%83%9E%E3%83%8B%E3%82%A6%E3%82%AF%E3%80%8E%E3%83%96%E3%83%A9%E3%83%B3%E3%83%87%E3%82%A3%E3%83%B3%E3%82%B0%E3%81%AE%E7%A7%91%E5%AD%A64%E3%80%8F.html</link>
+    <guid isPermaLink="false">ジェニー・ロマニウク『ブランディングの科学4』</guid>
+    <pubDate>Sun, 30 Aug 2026 00:00:00 +0900</pubDate>
+    <description>ジェニー・ロマニウク『ブランディングの科学4』</description>
+  </item>
+  <item>
     <title>阿久津隆『本の読める場所を求めて』</title>
     <link>https://toliwake-san.github.io/blog/%E9%98%BF%E4%B9%85%E6%B4%A5%E9%9A%86%E3%80%8E%E6%9C%AC%E3%81%AE%E8%AA%AD%E3%82%81%E3%82%8B%E5%A0%B4%E6%89%80%E3%82%92%E6%B1%82%E3%82%81%E3%81%A6%E3%80%8F.html</link>
     <guid isPermaLink="false">阿久津隆『本の読める場所を求めて』</guid>
@@ -137,13 +144,6 @@
     <guid isPermaLink="false">佐藤正午『月の満ち欠け』</guid>
     <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
     <description>「文藝」 2020年夏号</description>
-  </item>
-  <item>
-    <title>博報堂 「広告」414号</title>
-    <link>https://toliwake-san.github.io/blog/%E5%8D%9A%E5%A0%B1%E5%A0%82_%E3%80%8C%E5%BA%83%E5%91%8A%E3%80%8D414%E5%8F%B7.html</link>
-    <guid isPermaLink="false">博報堂_「広告」414号</guid>
-    <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
-    <description>博報堂 「広告」414号</description>
   </item>
 </channel>
 </rss>
