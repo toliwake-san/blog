@@ -6,6 +6,13 @@
   <description>読んだ本と、日々のこと。</description>
   <language>ja</language>
   <item>
+    <title>地球がまわる音を聴く：パンデミック以降のウェルビーイング</title>
+    <link>https://toliwake-san.github.io/blog/%E5%9C%B0%E7%90%83%E3%81%8C%E3%81%BE%E3%82%8F%E3%82%8B%E9%9F%B3%E3%82%92%E8%81%B4%E3%81%8F%EF%BC%9A%E3%83%91%E3%83%B3%E3%83%87%E3%83%9F%E3%83%83%E3%82%AF%E4%BB%A5%E9%99%8D%E3%81%AE%E3%82%A6%E3%82%A7%E3%83%AB%E3%83%93%E3%83%BC%E3%82%A4%E3%83%B3%E3%82%B0.html</link>
+    <guid isPermaLink="false">地球がまわる音を聴く：パンデミック以降のウェルビーイング</guid>
+    <pubDate>Mon, 31 Aug 2026 00:00:00 +0900</pubDate>
+    <description></description>
+  </item>
+  <item>
     <title>ジェニー・ロマニウク『ブランディングの科学4』</title>
     <link>https://toliwake-san.github.io/blog/%E3%82%B8%E3%82%A7%E3%83%8B%E3%83%BC%E3%83%BB%E3%83%AD%E3%83%9E%E3%83%8B%E3%82%A6%E3%82%AF%E3%80%8E%E3%83%96%E3%83%A9%E3%83%B3%E3%83%87%E3%82%A3%E3%83%B3%E3%82%B0%E3%81%AE%E7%A7%91%E5%AD%A64%E3%80%8F.html</link>
     <guid isPermaLink="false">ジェニー・ロマニウク『ブランディングの科学4』</guid>
@@ -137,13 +144,6 @@
     <guid isPermaLink="false">マルセル・プルースト『失われた時を求めて』8</guid>
     <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
     <description>マルセル・プルースト『失われた時を求めて』8』</description>
-  </item>
-  <item>
-    <title>佐藤正午『月の満ち欠け』</title>
-    <link>https://toliwake-san.github.io/blog/%E4%BD%90%E8%97%A4%E6%AD%A3%E5%8D%88%E3%80%8E%E6%9C%88%E3%81%AE%E6%BA%80%E3%81%A1%E6%AC%A0%E3%81%91%E3%80%8F.html</link>
-    <guid isPermaLink="false">佐藤正午『月の満ち欠け』</guid>
-    <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
-    <description>「文藝」 2020年夏号</description>
   </item>
 </channel>
 </rss>
