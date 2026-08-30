@@ -14,9 +14,11 @@
 安全のため 127.0.0.1（自分のパソコンの中）だけで待ち受けます。
 """
 
+import base64
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -26,7 +28,12 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PAGES_DIR = os.path.join(ROOT, "pages")
+IMAGES_DIR = os.path.join(ROOT, "static", "images")
 OUT_DIR = os.path.join(ROOT, "docs")
+
+# 取り込んだ画像の長辺がこれを超えていたら縮小する（0 で縮小しない）
+# macOS 標準の sips を使うので、無い環境ではそのまま保存されます
+MAX_IMAGE_EDGE = 2000
 
 sys.path.insert(0, ROOT)
 import build as B  # noqa: E402
@@ -114,6 +121,66 @@ def write_page(rel, meta, extra, body):
         f.write(text)
 
 
+IMG_EXT = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".heic", ".svg")
+
+
+def list_images():
+    if not os.path.isdir(IMAGES_DIR):
+        return []
+    out = []
+    for name in os.listdir(IMAGES_DIR):
+        full = os.path.join(IMAGES_DIR, name)
+        if name.startswith(".") or not os.path.isfile(full):
+            continue
+        if not name.lower().endswith(IMG_EXT):
+            continue
+        out.append({"name": name, "size": os.path.getsize(full),
+                    "mtime": os.path.getmtime(full)})
+    out.sort(key=lambda i: i["mtime"], reverse=True)
+    return out
+
+
+def unique_image_name(name):
+    name = os.path.basename(name).replace("/", "-").replace("\\", "-").lstrip(".")
+    name = re.sub(r"\s+", " ", name).strip() or "image.png"
+    if not name.lower().endswith(IMG_EXT):
+        name += ".png"
+    stem, ext = os.path.splitext(name)
+    n, out = 2, name
+    while os.path.exists(os.path.join(IMAGES_DIR, out)):
+        out = f"{stem}-{n}{ext}"
+        n += 1
+    return out
+
+
+def shrink_image(path):
+    """大きすぎる画像を縮める。macOS の sips があるときだけ働く。"""
+    if not MAX_IMAGE_EDGE or not shutil.which("sips"):
+        return False
+    try:
+        r = subprocess.run(["sips", "-g", "pixelWidth", "-g", "pixelHeight", path],
+                           capture_output=True, text=True, timeout=30)
+        nums = [int(x) for x in re.findall(r":\s*(\d+)", r.stdout)]
+        if not nums or max(nums) <= MAX_IMAGE_EDGE:
+            return False
+        subprocess.run(["sips", "-Z", str(MAX_IMAGE_EDGE), path],
+                       capture_output=True, timeout=60)
+        return True
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return False
+
+
+def save_image(name, b64):
+    os.makedirs(IMAGES_DIR, exist_ok=True)
+    data = base64.b64decode(b64.split(",")[-1])
+    out = unique_image_name(name)
+    full = os.path.join(IMAGES_DIR, out)
+    with open(full, "wb") as f:
+        f.write(data)
+    return {"name": out, "shrunk": shrink_image(full),
+            "size": os.path.getsize(full)}
+
+
 def preview_html(body):
     """本文のプレビュー。[[ ]] は実際のリンク解決をしないので印だけ付ける。"""
     html = B.md_to_html(body)
@@ -187,9 +254,16 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError, ValueError) as e:
                 return self.send_json({"error": str(e)}, 400)
         if path == "/api/images":
-            d = os.path.join(ROOT, "static", "images")
-            names = sorted(n for n in os.listdir(d)) if os.path.isdir(d) else []
-            return self.send_json({"images": [n for n in names if not n.startswith(".")]})
+            return self.send_json({"images": list_images()})
+        if path.startswith("/raw/images/"):
+            # static/images をビルドを待たずに直接見せる（サムネイル用）
+            name = os.path.basename(path[len("/raw/images/"):])
+            full = os.path.join(IMAGES_DIR, name)
+            if not os.path.isfile(full):
+                return self.not_found()
+            ext = os.path.splitext(full)[1].lower()
+            with open(full, "rb") as f:
+                return self.send_bytes(f.read(), MIME.get(ext, "application/octet-stream"))
 
         # それ以外は docs/ を配信
         rel = path.lstrip("/") or "index.html"
@@ -232,6 +306,12 @@ class Handler(BaseHTTPRequestHandler):
                     "permanent": "true", "face": "false"}
             write_page(rel, meta, {}, "")
             return self.send_json({"path": rel, **rebuild()})
+
+        if path == "/api/upload":
+            try:
+                return self.send_json(save_image(data.get("name", ""), data.get("data", "")))
+            except (OSError, ValueError, base64.binascii.Error) as e:
+                return self.send_json({"error": f"取り込めませんでした: {e}"}, 400)
 
         if path == "/api/preview":
             return self.send_json({"html": preview_html(data.get("body", ""))})
@@ -318,6 +398,27 @@ button:disabled{opacity:.4;cursor:default}
 #preview .wikilink.new::after{content:"＋";font-size:.6em;vertical-align:super;color:var(--ink-faint)}
 #preview figcaption{font-family:var(--sans);font-size:.7rem;color:var(--ink-faint);margin-top:.5rem}
 .empty-state{padding:3rem 1.6rem;color:var(--ink-faint);font-size:.85rem}
+
+/* 画像 */
+#drawer{display:none;border-top:1px solid var(--rule);background:var(--tint);
+  padding:.8rem 1.2rem 1rem;max-height:260px;overflow-y:auto}
+#drawer.on{display:block}
+.drawer-head{display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem}
+.drawer-head .grow{flex:1}
+.drawer-head .hint{font-size:.68rem;color:var(--ink-faint)}
+#imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:.6rem}
+.img{background:#fff;border:1px solid var(--rule);border-radius:5px;overflow:hidden;
+  cursor:pointer;transition:border-color .15s}
+.img:hover{border-color:var(--ink-faint)}
+.img .thumb{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:var(--tint)}
+.img .n{font-size:.6rem;color:var(--ink-soft);padding:.25rem .35rem;line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.img .acts{display:flex;border-top:1px solid var(--rule)}
+.img .acts button{flex:1;border:0;border-radius:0;background:none;font-size:.6rem;
+  padding:.22rem 0;color:var(--ink-faint)}
+.img .acts button:hover{background:var(--tint);color:var(--ink)}
+.img .acts button+button{border-left:1px solid var(--rule)}
+textarea.drop{outline:2px dashed var(--ink-faint);outline-offset:-6px;background:var(--tint)}
 #log{font-family:var(--mono);font-size:.68rem;color:var(--ink-soft);white-space:pre-wrap;
   padding:.6rem 1.2rem;border-top:1px solid var(--rule);max-height:8rem;overflow-y:auto;display:none}
 </style>
@@ -338,6 +439,7 @@ button:disabled{opacity:.4;cursor:default}
     <span class="path" id="path">—</span>
     <span class="grow"></span>
     <span id="msg"></span>
+    <button id="imgbtn">画像</button>
     <button id="split">プレビュー</button>
     <button id="view">見る</button>
     <button id="save" class="primary">保存</button>
@@ -368,6 +470,15 @@ button:disabled{opacity:.4;cursor:default}
         <label>表紙画像<input id="cover" placeholder="images/xxx.jpg"></label>
       </div>
       <textarea id="body" placeholder="ここに書く…" spellcheck="false"></textarea>
+      <div id="drawer">
+        <div class="drawer-head">
+          <button id="pick">パソコンから選ぶ</button>
+          <input type="file" id="file" accept="image/*" multiple hidden>
+          <span class="grow"></span>
+          <span class="hint">クリックで本文に挿入。textareaに画像をドロップ、または貼り付けでも入ります</span>
+        </div>
+        <div id="imgs"></div>
+      </div>
     </div>
     <div id="preview"></div>
   </div>
@@ -476,6 +587,95 @@ $('new').onclick = function () {
       loadList(true).then(function () { open(r.path); $('body').focus(); });
     });
 };
+
+/* ---------------------------------------------------------- 画像 */
+function insert(text) {
+  var t = $('body'), s = t.selectionStart, e = t.selectionEnd, v = t.value;
+  var before = v.slice(0, s), after = v.slice(e);
+  if (before && !/\n\n$/.test(before)) before += before.endsWith('\n') ? '\n' : '\n\n';
+  if (after && !/^\n\n/.test(after)) after = (after.startsWith('\n') ? '\n' : '\n\n') + after;
+  t.value = before + text + after;
+  var pos = (before + text).length;
+  t.focus(); t.setSelectionRange(pos, pos);
+  dirty = true; preview();
+}
+
+function kb(n) { return n > 1048576 ? (n/1048576).toFixed(1) + 'MB' : Math.round(n/1024) + 'KB'; }
+
+function loadImages() {
+  return api('/api/images').then(function (d) {
+    var h = '';
+    (d.images || []).forEach(function (im) {
+      var n = esc(im.name), u = '/raw/images/' + encodeURIComponent(im.name);
+      h += '<div class="img" data-n="' + encodeURIComponent(im.name) + '">'
+        + '<img class="thumb" src="' + u + '" alt="" loading="lazy">'
+        + '<div class="n" title="' + n + ' · ' + kb(im.size) + '">' + n + '</div>'
+        + '<div class="acts"><button data-a="wide">大きく</button>'
+        + '<button data-a="cover">表紙に</button></div></div>';
+    });
+    $('imgs').innerHTML = h || '<span class="hint">まだ画像がありません</span>';
+    Array.prototype.forEach.call($('imgs').children, function (el) {
+      if (!el.dataset.n) return;
+      var name = decodeURIComponent(el.dataset.n);
+      el.onclick = function (ev) {
+        var a = ev.target.dataset ? ev.target.dataset.a : null;
+        if (a === 'cover') { $('cover').value = 'images/' + name; dirty = true; msg('表紙に設定'); return; }
+        var alt = '';
+        insert('![' + alt + '](images/' + name + (a === 'wide' ? ' wide' : '') + ')');
+      };
+    });
+  });
+}
+
+function upload(file) {
+  return new Promise(function (res, rej) {
+    var r = new FileReader();
+    r.onload = function () {
+      api('/api/upload', { name: file.name || 'pasted.png', data: r.result })
+        .then(function (d) {
+          if (d.error) { msg(d.error); rej(); return; }
+          msg(d.shrunk ? '取り込みました（縮小 ' + kb(d.size) + '）' : '取り込みました');
+          res(d.name);
+        });
+    };
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function uploadAll(files) {
+  var list = Array.prototype.filter.call(files, function (f) { return f.type.indexOf('image/') === 0; });
+  if (!list.length) return;
+  msg('取り込み中…', true);
+  list.reduce(function (chain, f) {
+    return chain.then(function () {
+      return upload(f).then(function (name) { insert('![](images/' + name + ')'); });
+    });
+  }, Promise.resolve()).then(loadImages);
+}
+
+$('imgbtn').onclick = function () {
+  var on = $('drawer').classList.toggle('on');
+  $('imgbtn').classList.toggle('primary', on);
+  if (on) loadImages();
+};
+$('pick').onclick = function () { $('file').click(); };
+$('file').onchange = function () { uploadAll(this.files); this.value = ''; };
+
+var ta = $('body');
+ta.addEventListener('dragover', function (e) { e.preventDefault(); ta.classList.add('drop'); });
+ta.addEventListener('dragleave', function () { ta.classList.remove('drop'); });
+ta.addEventListener('drop', function (e) {
+  e.preventDefault(); ta.classList.remove('drop');
+  if (e.dataTransfer.files.length) uploadAll(e.dataTransfer.files);
+});
+ta.addEventListener('paste', function (e) {
+  var items = (e.clipboardData || {}).items || [], files = [];
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].kind === 'file') { var f = items[i].getAsFile(); if (f) files.push(f); }
+  }
+  if (files.length) { e.preventDefault(); uploadAll(files); }
+});
 
 $('pub').onclick = function () {
   if (!confirm('GitHubに公開しますか？')) return;
