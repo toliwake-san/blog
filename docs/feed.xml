@@ -6,6 +6,13 @@
   <description>読んだ本と、日々のこと。</description>
   <language>ja</language>
   <item>
+    <title>濱口竜介「急に具合が悪くなる」</title>
+    <link>https://toliwake-san.github.io/blog/%E6%BF%B1%E5%8F%A3%E7%AB%9C%E4%BB%8B%E3%80%8C%E6%80%A5%E3%81%AB%E5%85%B7%E5%90%88%E3%81%8C%E6%82%AA%E3%81%8F%E3%81%AA%E3%82%8B%E3%80%8D.html</link>
+    <guid isPermaLink="false">濱口竜介「急に具合が悪くなる」</guid>
+    <pubDate>Mon, 07 Sep 2026 00:00:00 +0900</pubDate>
+    <description>濱口竜介「急に具合が悪くなる」</description>
+  </item>
+  <item>
     <title>鳥羽和久『それがやさしさじゃ困る』</title>
     <link>https://toliwake-san.github.io/blog/%E9%B3%A5%E7%BE%BD%E5%92%8C%E4%B9%85%E3%80%8E%E3%81%9D%E3%82%8C%E3%81%8C%E3%82%84%E3%81%95%E3%81%97%E3%81%95%E3%81%98%E3%82%83%E5%9B%B0%E3%82%8B%E3%80%8F.html</link>
     <guid isPermaLink="false">鳥羽和久『それがやさしさじゃ困る』</guid>
@@ -137,13 +144,6 @@
     <guid isPermaLink="false">「文藝」　2020年夏号</guid>
     <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
     <description>「文藝」 2020年夏号</description>
-  </item>
-  <item>
-    <title>ことばと</title>
-    <link>https://toliwake-san.github.io/blog/%E3%81%93%E3%81%A8%E3%81%B0%E3%81%A8.html</link>
-    <guid isPermaLink="false">ことばと</guid>
-    <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
-    <description>ことばと</description>
   </item>
 </channel>
 </rss>
