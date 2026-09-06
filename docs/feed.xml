@@ -6,6 +6,13 @@
   <description>読んだ本と、日々のこと。</description>
   <language>ja</language>
   <item>
+    <title>リチャード・ローティ『偶然性・アイロニー・連帯』</title>
+    <link>https://toliwake-san.github.io/blog/%E3%83%AA%E3%83%81%E3%83%A3%E3%83%BC%E3%83%89%E3%83%BB%E3%83%AD%E3%83%BC%E3%83%86%E3%82%A3%E3%80%8E%E5%81%B6%E7%84%B6%E6%80%A7%E3%83%BB%E3%82%A2%E3%82%A4%E3%83%AD%E3%83%8B%E3%83%BC%E3%83%BB%E9%80%A3%E5%B8%AF%E3%80%8F.html</link>
+    <guid isPermaLink="false">リチャード・ローティ『偶然性・アイロニー・連帯』</guid>
+    <pubDate>Mon, 07 Sep 2026 00:00:00 +0900</pubDate>
+    <description>リチャード・ローティ『偶然性・アイロニー・連帯』</description>
+  </item>
+  <item>
     <title>濱口竜介「急に具合が悪くなる」</title>
     <link>https://toliwake-san.github.io/blog/%E6%BF%B1%E5%8F%A3%E7%AB%9C%E4%BB%8B%E3%80%8C%E6%80%A5%E3%81%AB%E5%85%B7%E5%90%88%E3%81%8C%E6%82%AA%E3%81%8F%E3%81%AA%E3%82%8B%E3%80%8D.html</link>
     <guid isPermaLink="false">濱口竜介「急に具合が悪くなる」</guid>
@@ -137,13 +144,6 @@
     <guid isPermaLink="false">dreamcore</guid>
     <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
     <description></description>
-  </item>
-  <item>
-    <title>「文藝」　2020年夏号</title>
-    <link>https://toliwake-san.github.io/blog/%E3%80%8C%E6%96%87%E8%97%9D%E3%80%8D%E3%80%802020%E5%B9%B4%E5%A4%8F%E5%8F%B7.html</link>
-    <guid isPermaLink="false">「文藝」　2020年夏号</guid>
-    <pubDate>Sat, 15 Aug 2026 00:00:00 +0900</pubDate>
-    <description>「文藝」 2020年夏号</description>
   </item>
 </channel>
 </rss>
