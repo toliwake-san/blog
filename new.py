@@ -57,6 +57,7 @@ def main():
         f.write(f"""---
 title: {title}
 date: {date}
+updated: 
 tags: {tags}
 layout: {layout}
 visibility: {visibility}

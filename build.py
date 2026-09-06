@@ -214,7 +214,36 @@ def figure_or_p(inner):
     return f'<figure{cls}><img src="{m.group(1)}" alt="{m.group(2)}"{m.group(3)}>{cap}</figure>'
 
 
-def md_to_html(md):
+MGN_LINE_RE = re.compile(r"^\s*>>([<>])?\s?(.*)$")
+
+
+def mgn_group(target, notes):
+    """本文のかたまり（target）に、その脇へ置く注（notes）を添える。"""
+    refs = "".join(
+        f'<label class="mgn-ref" for="mgn-t-{n}" title="余白の書き込み">'
+        f'<sup>{n}</sup></label>' for n, _, _ in notes
+    )
+    m = re.search(r"</(?:p|h[1-6]|li|blockquote)>\s*$", target)
+    if m:
+        target = target[:m.start()] + refs + target[m.start():]
+    else:
+        target = target + f'<p class="mgn-refs">{refs}</p>'
+
+    parts = ['<div class="mgn-group">']
+    for n, side, inner in notes:
+        parts.append(f'<input type="checkbox" id="mgn-t-{n}" class="mgn-toggle" hidden>')
+        parts.append(
+            f'<aside class="mgn mgn-{side}" role="note">'
+            f'<span class="mgn-num">{n}</span>'
+            f'<div class="mgn-body">{inner}</div></aside>'
+        )
+    parts.append(target)
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def md_to_html(md, _ctr=None):
+    ctr = _ctr if _ctr is not None else [0]
     lines = md.replace("\r\n", "\n").split("\n")
     out, i = [], 0
     while i < len(lines):
@@ -243,12 +272,39 @@ def md_to_html(md):
             out.append(f"<h{lv}>{_inline(m.group(2))}</h{lv}>")
             i += 1
             continue
+        # >> で始まる行は、直前のかたまりの脇に置く注（マルジナリア）
+        if s.startswith(">>"):
+            notes = []
+            while i < len(lines) and lines[i].strip().startswith(">>"):
+                m = MGN_LINE_RE.match(lines[i])
+                side = "left" if m.group(1) == "<" else "right"
+                buf = [m.group(2)]
+                i += 1
+                # 向きの指定（>>< や >>>）があれば、そこから別の注が始まる
+                while i < len(lines) and lines[i].strip().startswith(">>"):
+                    mm = MGN_LINE_RE.match(lines[i])
+                    if mm.group(1):
+                        break
+                    buf.append(mm.group(2))
+                    i += 1
+                ctr[0] += 1
+                notes.append((ctr[0], side, md_to_html("\n".join(buf), ctr)))
+                # 空行をはさんで次の注が続くことがある
+                j = i
+                while j < len(lines) and not lines[j].strip():
+                    j += 1
+                if j < len(lines) and lines[j].strip().startswith(">>"):
+                    i = j
+            target = out.pop() if out else ""
+            out.append(mgn_group(target, notes))
+            continue
+
         if s.startswith(">"):
             buf = []
             while i < len(lines) and lines[i].strip().startswith(">"):
                 buf.append(re.sub(r"^\s*>\s?", "", lines[i]))
                 i += 1
-            out.append("<blockquote>" + md_to_html("\n".join(buf)) + "</blockquote>")
+            out.append("<blockquote>" + md_to_html("\n".join(buf), ctr) + "</blockquote>")
             continue
         if re.match(r"^\s*[-*+]\s+", line):
             items = []
@@ -350,6 +406,18 @@ def new_page(path, meta=None, body_md="", virtual=False, mtime=None):
     if dt is None:
         dt = datetime.fromtimestamp(mtime) if mtime else datetime(1970, 1, 1)
 
+    # 更新日。未指定、または作成日より前なら「更新なし」として扱う
+    updated_raw = meta.get("updated", "")
+    udt = None
+    if updated_raw:
+        try:
+            udt = datetime.strptime(updated_raw[:10], "%Y-%m-%d")
+        except ValueError:
+            udt = None
+    if udt is not None and udt < dt:
+        udt = None
+    edt = udt or dt
+
     visibility = (meta.get("visibility") or "public").lower()
     if visibility not in ("public", "unlisted", "private"):
         visibility = "public"
@@ -368,6 +436,12 @@ def new_page(path, meta=None, body_md="", virtual=False, mtime=None):
         "date_str": dt.strftime("%Y年%m月%d日"),
         "short_date": dt.strftime("%Y.%m.%d"),
         "iso": dt.strftime("%Y-%m-%d"),
+        "updated": edt,
+        "has_updated": udt is not None,
+        "updated_str": edt.strftime("%Y年%m月%d日"),
+        "updated_short": edt.strftime("%Y.%m.%d"),
+        "updated_iso": edt.strftime("%Y-%m-%d"),
+        "sort_date": edt,          # 並び替えは更新日（なければ作成日）
         "tag_names": csv_list(meta.get("tags", "")),
         "layout": layout,
         "visibility": visibility,
@@ -410,6 +484,10 @@ def load_pages():
 
 # ---------------------------------------------------------------- リンク
 LINK_RE = re.compile(r"\[\[([^\[\]|]+?)(?:\|([^\[\]]+?))?\]\]")
+# 抜粋や本の厚みを数えるときは、余白の書き込みと番号を取りのぞく
+MGN_STRIP_RE = re.compile(
+    r'<aside class="mgn .*?</aside>|<label class="mgn-ref".*?</label>'
+    r'|<p class="mgn-refs">.*?</p>', re.S)
 CODE_RE = re.compile(r"<pre>.*?</pre>|<code>.*?</code>", re.S)
 
 
@@ -482,7 +560,7 @@ def build_graph(pages):
             name = m.group(1).strip()
             if name and not exists(name):
                 create(name, {
-                    "date": "", "tags": "", "layout": "page",
+                    "date": "", "updated": "", "tags": "", "layout": "page",
                     "visibility": "public", "permanent": "true",
                     "size": "文庫", "face": "false",
                 })
@@ -524,7 +602,8 @@ def build_graph(pages):
 
         body = outside_code(p["raw_html"], lambda t: LINK_RE.sub(repl, t))
         # 面陳の表紙に使う。深さ調整の前（サイト直下からの相対）で取っておく
-        m0 = re.search(r'<img [^>]*src="([^"]+)"', body)
+        m0 = (re.search(r'<img [^>]*src="([^"]+)"', MGN_STRIP_RE.sub("", body))
+              or re.search(r'<img [^>]*src="([^"]+)"', body))
         p["first_image"] = m0.group(1) if m0 else ""
         # 画像やリンクの相対パスを深さに合わせる
         if p["depth"]:
@@ -535,7 +614,7 @@ def build_graph(pages):
             )
         p["html"] = body
 
-        plain = strip_tags(body)
+        plain = strip_tags(MGN_STRIP_RE.sub("", body))
         p["excerpt"] = p["excerpt_fm"] or (plain[:110] + ("…" if len(plain) > 110 else ""))
         p["length"] = len(plain)
 
@@ -598,7 +677,8 @@ def card_html(p, depth):
         cover = f'<div class="card-cover"><img src="{asset(p["cover"], depth)}" alt="" loading="lazy"></div>'
     size = "s" if p["length"] < 160 else ("l" if p["length"] > 900 else "m")
     tags = "".join(f'<span class="tag">{html.escape(t["title"])}</span>' for t in p["tag_links"])
-    date = f'<time datetime="{p["iso"]}">{p["short_date"]}</time>' if p["has_date"] else ""
+    date = (f'<time datetime="{p["updated_iso"]}">{p["updated_short"]}</time>'
+            if p["has_date"] else "")
     excerpt = html.escape(p["excerpt"] if size != "s" else p["excerpt"][:60])
     return f"""<article class="card size-{size}{' has-cover' if cover else ''}" data-tags="{html.escape(' '.join(t['title'] for t in p['tag_links']))}">
   <a href="{url_of(p, depth)}">
@@ -632,7 +712,7 @@ def book_html(p, depth):
             src = ""
         inner = (f'<span class="face-img"><img src="{src}" alt="" loading="lazy"></span>'
                  if src else '<span class="face-img blank"></span>')
-        date = f'<span class="face-date">{p["short_date"]}</span>' if p["has_date"] else ""
+        date = f'<span class="face-date">{p["updated_short"]}</span>' if p["has_date"] else ""
         return (f'<a class="book face" data-tags="{tags}" href="{href}" style="--w:{w}px;--h:{h}px">'
                 f'<span class="vol">{inner}<span class="face-cap">'
                 f'<span class="face-title">{title}</span>{date}</span></span></a>')
@@ -659,7 +739,7 @@ def listed(items):
 def render_home(pages):
     items = sorted(
         [p for p in pages.values() if p["visibility"] == "public" and p["on_home"]],
-        key=lambda p: (p["date"], p["title"]),
+        key=lambda p: (p["sort_date"], p["title"]),
         reverse=True,
     )
     counts = {}
@@ -732,6 +812,9 @@ def render_page(p, pages):
         f'<a class="tag" href="{url_of(t, d)}">{html.escape(t["title"])}</a>' for t in p["tag_links"]
     )
     date = f'<time datetime="{p["iso"]}">{p["date_str"]}</time>' if p["has_date"] else ""
+    if p["has_updated"]:
+        date += (f'<time class="updated" datetime="{p["updated_iso"]}">'
+                 f'更新 {p["updated_str"]}</time>')
     note = "" if p["permanent"] else '<span class="note-flag" title="書きかけのメモ">note</span>'
 
     header = f"""<header class="post-header">

@@ -23,6 +23,7 @@ import subprocess
 import sys
 import threading
 import webbrowser
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -39,7 +40,7 @@ sys.path.insert(0, ROOT)
 import build as B  # noqa: E402
 
 # フォームで扱う項目と、その既定値
-FIELDS = ["title", "date", "tags", "layout", "size", "visibility",
+FIELDS = ["title", "date", "updated", "tags", "layout", "size", "visibility",
           "permanent", "face", "cover", "spine", "home"]
 
 MIME = {
@@ -90,11 +91,12 @@ def list_pages():
                 "path": rel,
                 "title": meta.get("title") or rel[:-3],
                 "date": meta.get("date", ""),
+                "updated": meta.get("updated", ""),
                 "tags": meta.get("tags", ""),
                 "empty": not body.strip(),
                 "mtime": os.path.getmtime(full),
             })
-    out.sort(key=lambda p: (p["date"] or "", p["mtime"]), reverse=True)
+    out.sort(key=lambda p: (p["updated"] or p["date"] or "", p["mtime"]), reverse=True)
     return out
 
 
@@ -104,6 +106,19 @@ def read_page(rel):
     known = {k: meta.get(k, "") for k in FIELDS}
     extra = {k: v for k, v in meta.items() if k not in FIELDS}
     return {"path": rel, "meta": known, "extra": extra, "body": body}
+
+
+def body_changed(rel, body):
+    """前回保存した本文と変わっていたら True。更新日の自動記録に使う。"""
+    try:
+        full = page_path(rel)
+    except ValueError:
+        return False
+    if not os.path.exists(full):
+        return bool(body.strip())
+    with open(full, encoding="utf-8") as f:
+        _, old = B.parse_front_matter(f.read())
+    return old.strip() != body.strip()
 
 
 def write_page(rel, meta, extra, body):
@@ -289,11 +304,16 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/save":
             try:
-                write_page(data["path"], data.get("meta", {}),
-                           data.get("extra", {}), data.get("body", ""))
+                meta = dict(data.get("meta", {}))
+                body = data.get("body", "")
+                # 本文が変わっていたら更新日を今日にする（欄を直せば手動でも指定できる）
+                if body_changed(data["path"], body):
+                    meta["updated"] = datetime.now().strftime("%Y-%m-%d")
+                write_page(data["path"], meta, data.get("extra", {}), body)
             except (OSError, ValueError, KeyError) as e:
                 return self.send_json({"error": str(e)}, 400)
-            return self.send_json({"saved": True, **rebuild()})
+            return self.send_json({"saved": True, "updated": meta.get("updated", ""),
+                                   **rebuild()})
 
         if path == "/api/new":
             name = safe_name(data.get("title", ""))
@@ -397,6 +417,13 @@ button:disabled{opacity:.4;cursor:default}
 #preview .wikilink.new{color:var(--ink-soft);border-bottom:1px dashed var(--ink-faint)}
 #preview .wikilink.new::after{content:"＋";font-size:.6em;vertical-align:super;color:var(--ink-faint)}
 #preview figcaption{font-family:var(--sans);font-size:.7rem;color:var(--ink-faint);margin-top:.5rem}
+#preview .mgn{position:relative;font-size:.75rem;line-height:1.8;color:var(--ink-soft);
+  background:var(--tint);border-radius:3px;padding:.7rem .9rem .7rem 1.8rem;margin:.4rem 0 1.2rem}
+#preview .mgn-num{position:absolute;left:.7rem;top:.8rem;font-size:.6rem;color:var(--ink-faint)}
+#preview .mgn-body>:first-child{margin-top:0}
+#preview .mgn-body>:last-child{margin-bottom:0}
+#preview .mgn-ref{font-size:.62em;color:var(--ink-faint);cursor:default}
+#preview .mgn-toggle{display:none}
 .empty-state{padding:3rem 1.6rem;color:var(--ink-faint);font-size:.85rem}
 
 /* 画像 */
@@ -449,6 +476,7 @@ textarea.drop{outline:2px dashed var(--ink-faint);outline-offset:-6px;background
       <div class="meta" id="meta">
         <label class="wide">タイトル<input id="title"></label>
         <label>日付<input id="date" placeholder="2026-08-20"></label>
+        <label>更新日<input id="updated" placeholder="保存すると自動"></label>
         <label>タグ（カンマ区切り）<input id="tags"></label>
         <label>判型
           <select id="size">
@@ -469,7 +497,7 @@ textarea.drop{outline:2px dashed var(--ink-faint);outline-offset:-6px;background
         <label>背表紙の短縮名<input id="spine"></label>
         <label>表紙画像<input id="cover" placeholder="images/xxx.jpg"></label>
       </div>
-      <textarea id="body" placeholder="ここに書く…" spellcheck="false"></textarea>
+      <textarea id="body" placeholder="ここに書く…（行頭の &gt;&gt; で、直前の段落の脇に注を置けます）" spellcheck="false"></textarea>
       <div id="drawer">
         <div class="drawer-head">
           <button id="pick">パソコンから選ぶ</button>
@@ -488,7 +516,7 @@ textarea.drop{outline:2px dashed var(--ink-faint);outline-offset:-6px;background
 <script>
 var cur = null, pages = [], dirty = false, timer = null;
 var $ = function (id) { return document.getElementById(id); };
-var META = ['title','date','tags','layout','size','visibility','permanent','face','cover','spine'];
+var META = ['title','date','updated','tags','layout','size','visibility','permanent','face','cover','spine'];
 
 function msg(t, keep) {
   $('msg').textContent = t;
@@ -515,7 +543,7 @@ function render() {
     if (q && p.title.toLowerCase().indexOf(q) < 0 && p.path.toLowerCase().indexOf(q) < 0) return;
     html += '<div class="item' + (p.path === cur ? ' on' : '') + '" data-p="' + encodeURIComponent(p.path) + '">'
       + '<span class="t">' + esc(p.title) + '</span>'
-      + '<span class="d">' + (p.date || '—') + (p.empty ? ' <span class="dot">·空</span>' : '') + '</span></div>';
+      + '<span class="d">' + (p.updated || p.date || '—') + (p.empty ? ' <span class="dot">·空</span>' : '') + '</span></div>';
   });
   $('list').innerHTML = html;
   Array.prototype.forEach.call($('list').children, function (el) {
@@ -551,7 +579,9 @@ function save() {
     .then(function (d) {
       $('save').disabled = false;
       if (d.error || d.ok === false) { msg('失敗'); log(d.error || 'ビルドに失敗しました'); return; }
-      dirty = false; msg('保存しました'); log(''); loadList(true);
+      dirty = false;
+      if (d.updated && $('updated')) $('updated').value = d.updated;
+      msg('保存しました'); log(''); loadList(true);
     });
 }
 

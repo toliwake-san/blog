@@ -388,6 +388,8 @@ a.tag:hover { color: var(--ink); }
   font-variant-numeric: tabular-nums;
 }
 
+.post-header time + time { margin-left: 0.9rem; }
+
 .post-header h1 {
   font-family: var(--serif);
   font-size: 1.55rem;
@@ -454,6 +456,96 @@ a.tag:hover { color: var(--ink); }
   width: min(46rem, 92vw);
   margin-left: 50%;
   transform: translateX(-50%);
+}
+
+/* ---------------------------------------------- マルジナリア（余白の書き込み）
+   狭い画面では番号を押したときだけ開く。広い画面では本文の脇に並ぶ。 */
+.mgn-group { display: flex; flex-direction: column; }
+
+.mgn-ref {
+  font-family: var(--mono);
+  font-size: 0.62em;
+  color: var(--ink-faint);
+  cursor: pointer;
+  padding: 0 0.15em;
+  vertical-align: baseline;
+  transition: color .2s;
+}
+
+.mgn-ref sup { font-size: inherit; vertical-align: super; }
+.mgn-ref:hover { color: var(--ink); }
+.mgn-refs { margin: 0.3em 0 1.9em; }
+
+.mgn {
+  order: 2;
+  display: none;
+  position: relative;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  line-height: 1.9;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
+  padding: 0.9rem 1.1rem 0.9rem 2rem;
+  margin: -0.6em 0 1.9em;
+  background: var(--paper-tint);
+  border-radius: 3px;
+}
+
+.mgn-toggle:checked + .mgn { display: block; }
+
+.mgn-num {
+  position: absolute;
+  left: 0.9rem;
+  top: 1rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--ink-faint);
+}
+
+.mgn-body > :first-child { margin-top: 0; }
+.mgn-body > :last-child { margin-bottom: 0; }
+.mgn-body p { margin: 0 0 0.9em; font-family: inherit; font-size: inherit; line-height: inherit; }
+.mgn-body ul, .mgn-body ol { margin: 0 0 0.9em; padding-left: 1.2em; }
+.mgn-body li { margin-bottom: 0.2em; }
+.mgn-body img { width: 100%; max-width: 20rem; height: auto; display: block; margin: 0.4em 0; border-radius: 2px; }
+.mgn-body figure, .mgn-body figure.wide {
+  margin: 0.4em 0; width: auto; margin-left: 0; transform: none;
+}
+.mgn-body figcaption { font-size: 0.68rem; line-height: 1.7; margin-top: 0.4rem; }
+.mgn-body blockquote { margin: 0.6em 0; font-size: 0.95em; padding-left: 0.9em; }
+.mgn-body .embed, .mgn-body .linkcard { margin: 0.5em 0; }
+
+/* 本文の脇に置けるだけの余白があるときだけ、余白へ出す */
+@media (min-width: 1040px) {
+  .post-body { --mgn-w: 11.5rem; --mgn-gap: 1.3rem; }
+  .post-body::after { content: ""; display: block; clear: both; }
+
+  .mgn-group { display: block; }
+
+  .mgn,
+  .mgn-toggle:checked + .mgn {
+    display: block;
+    width: var(--mgn-w);
+    margin: 0.35rem 0 1.2rem;
+    padding: 0 0 0 1.1rem;
+    background: none;
+    border-radius: 0;
+  }
+
+  .mgn-right { float: right; clear: right; margin-right: calc(-1 * (var(--mgn-w) + var(--mgn-gap))); }
+  .mgn-left {
+    float: left; clear: left;
+    margin-left: calc(-1 * (var(--mgn-w) + var(--mgn-gap)));
+    padding: 0 1.1rem 0 0;
+    text-align: right;           /* 本文の側に寄せて読ませる */
+  }
+  .mgn-num { left: 0; top: 0.2rem; }
+  .mgn-left .mgn-num { left: auto; right: 0; }
+  .mgn-ref { cursor: default; }
+}
+
+@media (min-width: 1200px) {
+  .post-body { --mgn-w: 13rem; --mgn-gap: 2rem; }
 }
 
 /* 埋め込み */
@@ -557,4 +649,6 @@ a.tag:hover { color: var(--ink); }
 @media print {
   .site-nav, .post-nav, .back, .site-footer, .pills, .graph-wrap { display: none; }
   body { color: #000; }
+  /* 余白の書き込みは、たたまれていても紙には出す */
+  .mgn { display: block; float: none; width: auto; margin: 0.4rem 0 1.4rem; }
 }
