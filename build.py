@@ -806,6 +806,25 @@ def render_home(pages):
     return layout_html(None, pages, body, extra_body=js, extra_head=head)
 
 
+# 本文と、その下のリンク群とのあいだに引く手書きふうの波線
+WAVE_PATH = (
+    "M0,10C18.8,10 25.9,5.6 44.7,5.6C64.2,5.6 71.6,15.8 91.1,15.8C109.7,15.8 116.7,5 "
+    "135.3,5C151.6,5 157.8,15.6 174.1,15.6C191.2,15.6 197.7,5.3 214.7,5.3C232.5,5.3 "
+    "239.3,16.6 257,16.6C276.5,16.6 283.9,4.9 303.4,4.9C320.4,4.9 327,15.3 344,15.3"
+    "C363.5,15.3 370.9,4.9 390.3,4.9C408.6,4.9 415.6,14.5 433.9,14.5C450.6,14.5 457,4.2 "
+    "473.8,4.2C492.5,4.2 499.6,15.3 518.2,15.3C536.6,15.3 543.6,5.4 561.9,5.4C577.9,5.4 "
+    "584,9.4 600,9.4"
+)
+
+WAVE_HTML = (
+    '<div class="wave" role="separator" aria-hidden="true">'
+    '<svg viewBox="0 0 600 21" preserveAspectRatio="none" focusable="false">'
+    f'<path d="{WAVE_PATH}" fill="none" stroke="currentColor" stroke-width="1.6" '
+    'stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>'
+    '</svg></div>'
+)
+
+
 def render_page(p, pages):
     d = p["depth"]
     head_tags = "".join(
@@ -824,11 +843,12 @@ def render_page(p, pages):
   </header>"""
     body_html = f'<div class="post-body">{p["html"]}</div>' if p["html"] else ""
     out = [f'<article class="post">{header}{body_html}</article>']
+    tail = []
 
     back_tag, back_body = listed(p["back_tag"]), listed(p["back_body"])
 
     if p["layout"] == "grid":
-        out.append(f'<div class="grid">{"".join(card_html(x, d) for x in back_tag)}</div>')
+        tail.append(f'<div class="grid">{"".join(card_html(x, d) for x in back_tag)}</div>')
     elif p["layout"] == "table":
         rows = "".join(
             f'<tr><td class="c-date">{x["short_date"] if x["has_date"] else ""}</td>'
@@ -836,13 +856,13 @@ def render_page(p, pages):
             f'<td class="c-tags">{"".join(html.escape(t["title"]) + " " for t in x["tag_links"])}</td></tr>'
             for x in back_tag
         )
-        out.append(f'<table class="rows">{rows}</table>')
+        tail.append(f'<table class="rows">{rows}</table>')
     elif p["layout"] == "list":
         items = "".join(f'<li><a href="{url_of(x, d)}">{html.escape(x["title"])}</a></li>' for x in back_tag)
-        out.append(f'<section class="rel"><h2 aria-label="ここに属するページ">↳</h2><ul>{items}</ul></section>')
+        tail.append(f'<section class="rel"><h2 aria-label="ここに属するページ">↳</h2><ul>{items}</ul></section>')
     elif back_tag:
         items = "".join(f'<li><a href="{url_of(x, d)}">{html.escape(x["title"])}</a></li>' for x in back_tag)
-        out.append(f'<section class="rel"><h2 aria-label="ここに属するページ">↳</h2><ul>{items}</ul></section>')
+        tail.append(f'<section class="rel"><h2 aria-label="ここに属するページ">↳</h2><ul>{items}</ul></section>')
 
     # body link のバックリンク = 言及。grid / table では出さない
     if back_body and p["layout"] not in ("grid", "table"):
@@ -855,13 +875,18 @@ def render_page(p, pages):
                 f'<article class="mention"><blockquote>{qs}</blockquote>'
                 f'<a class="mention-src" href="{url_of(x, d)}">{label}{html.escape(x["title"])} →</a></article>'
             )
-        out.append(f'<section class="mentions">{"".join(blocks)}</section>')
+        tail.append(f'<section class="mentions">{"".join(blocks)}</section>')
 
     if p["body_links"]:
         items = "".join(
             f'<li><a href="{url_of(t, d)}">{html.escape(t["title"])}</a></li>' for t in p["body_links"]
         )
-        out.append(f'<section class="rel"><h2 aria-label="このページから">→</h2><ul>{items}</ul></section>')
+        tail.append(f'<section class="rel"><h2 aria-label="このページから">→</h2><ul>{items}</ul></section>')
+
+    # 本文のあとに何か続くときだけ、手書きふうの波線で区切る
+    if tail:
+        out.append(WAVE_HTML)
+        out.extend(tail)
 
     out.append(f'<p class="back"><a href="{"../" * d}index.html">一覧へ戻る</a></p>')
     return layout_html(p, pages, "\n".join(out))
