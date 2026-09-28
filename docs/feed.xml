@@ -6,6 +6,13 @@
   <description>読んだ本と、日々のこと。</description>
   <language>ja</language>
   <item>
+    <title>ガブリエルゼヴィン『トゥモロー・アンド・トゥモロー・アンド・トゥモロー』</title>
+    <link>https://toliwake-san.github.io/blog/%E3%82%AC%E3%83%96%E3%83%AA%E3%82%A8%E3%83%AB%E3%82%BC%E3%83%B4%E3%82%A3%E3%83%B3%E3%80%8E%E3%83%88%E3%82%A5%E3%83%A2%E3%83%AD%E3%83%BC%E3%83%BB%E3%82%A2%E3%83%B3%E3%83%89%E3%83%BB%E3%83%88%E3%82%A5%E3%83%A2%E3%83%AD%E3%83%BC%E3%83%BB%E3%82%A2%E3%83%B3%E3%83%89%E3%83%BB%E3%83%88%E3%82%A5%E3%83%A2%E3%83%AD%E3%83%BC%E3%80%8F.html</link>
+    <guid isPermaLink="false">ガブリエルゼヴィン『トゥモロー・アンド・トゥモロー・アンド・トゥモロー』</guid>
+    <pubDate>Tue, 29 Sep 2026 00:00:00 +0900</pubDate>
+    <description>ガブリエルゼヴィン『トゥモロー・アンド・トゥモロー・アンド・トゥモロー』</description>
+  </item>
+  <item>
     <title>リチャード・ローティ『偶然性・アイロニー・連帯』</title>
     <link>https://toliwake-san.github.io/blog/%E3%83%AA%E3%83%81%E3%83%A3%E3%83%BC%E3%83%89%E3%83%BB%E3%83%AD%E3%83%BC%E3%83%86%E3%82%A3%E3%80%8E%E5%81%B6%E7%84%B6%E6%80%A7%E3%83%BB%E3%82%A2%E3%82%A4%E3%83%AD%E3%83%8B%E3%83%BC%E3%83%BB%E9%80%A3%E5%B8%AF%E3%80%8F.html</link>
     <guid isPermaLink="false">リチャード・ローティ『偶然性・アイロニー・連帯』</guid>
@@ -137,13 +144,6 @@
     <guid isPermaLink="false">仮設と検証ー展覧会設営の為の展覧会ー</guid>
     <pubDate>Thu, 20 Aug 2026 00:00:00 +0900</pubDate>
     <description></description>
-  </item>
-  <item>
-    <title>村上慧『増補版 イメージと正体の調査報告』</title>
-    <link>https://toliwake-san.github.io/blog/%E6%9D%91%E4%B8%8A%E6%85%A7%E3%80%8E%E5%A2%97%E8%A3%9C%E7%89%88_%E3%82%A4%E3%83%A1%E3%83%BC%E3%82%B8%E3%81%A8%E6%AD%A3%E4%BD%93%E3%81%AE%E8%AA%BF%E6%9F%BB%E5%A0%B1%E5%91%8A%E3%80%8F.html</link>
-    <guid isPermaLink="false">村上慧『増補版_イメージと正体の調査報告』</guid>
-    <pubDate>Thu, 20 Aug 2026 00:00:00 +0900</pubDate>
-    <description>村上慧『増補版 イメージと正体の調査報告』</description>
   </item>
 </channel>
 </rss>
